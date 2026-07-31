@@ -33,6 +33,13 @@
       "fix": "ollama serve   # then re-run your command"
     },
     {
+      "code": "E012",
+      "title": "Microphone dependency not installed",
+      "what": "the local mic adapter needs the optional sounddevice package and it is not installed.",
+      "why": "audio capture is optional — the voice loop runs fully offline against MockASR without it.",
+      "fix": "uv pip install sounddevice   # or use MockASR / the Twilio adapter"
+    },
+    {
       "code": "E020",
       "title": "Not enough disk space for the selected model",
       "what": "free disk at the model directory is below model size × 1.15.",
@@ -178,6 +185,13 @@
       "what": "a permission outside network/sensitive/writes was declared.",
       "why": "permissions are a closed set so generated projects can reason about them.",
       "fix": "use permissions={\"network\"} (or \"sensitive\", \"writes\")"
+    },
+    {
+      "code": "E504",
+      "title": "Structured extraction failed validation",
+      "what": "the model's output did not match the requested schema, and the single repair attempt did not fix it.",
+      "why": "extraction returns validated data or it fails — a half-parsed clinical record is worse than none.",
+      "fix": "ack demo --json   # `details` carries both raw outputs; tighten the schema or the prompt"
     },
     {
       "code": "E601",

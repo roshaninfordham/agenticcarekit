@@ -1,0 +1,318 @@
+{
+  "suite": "capability-negotiation",
+  "spec_version": "1.0.0",
+  "description": "Contract 1. Providers declare, the runtime negotiates, nothing silently degrades (invariant 2). Two case flavours: `requirements` exercises Capabilities.missing() and expects the exact gap strings; `request` exercises the pre-network check and expects success or a registered E2xx code.",
+  "cases": [
+    {
+      "id": "cn-001-all-requirements-met",
+      "area": "capability-negotiation",
+      "note": "Empty list means every requirement is satisfied. E4B declares audio.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text", "image", "audio"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {
+          "modalities_in": ["text", "audio"],
+          "tool_calling": true,
+          "context_tokens": 32000,
+          "thinking": true
+        }
+      },
+      "expected": {"missing": []}
+    },
+    {
+      "id": "cn-002-audio-input-missing",
+      "area": "capability-negotiation",
+      "note": "The headline case: a voice blueprint against gemma4:31b. The gap string is part of the contract and feeds the E203 message verbatim.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text", "image"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 262144,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {"modalities_in": ["text", "audio"]}
+      },
+      "expected": {"missing": ["audio input"]}
+    },
+    {
+      "id": "cn-003-no-requirements-no-gaps",
+      "area": "capability-negotiation",
+      "note": "Absent requirement fields mean 'not required' — never 'required and false'.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": false,
+          "streaming": false,
+          "context_tokens": 8192,
+          "thinking": false,
+          "egress": "device"
+        },
+        "requirements": {}
+      },
+      "expected": {"missing": []}
+    },
+    {
+      "id": "cn-004-tool-calling-missing",
+      "area": "capability-negotiation",
+      "note": "Native function calling is required or refused; prompt-hacked JSON is not a substitute.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": false,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {"tool_calling": true}
+      },
+      "expected": {"missing": ["tool calling"]}
+    },
+    {
+      "id": "cn-005-output-modality-missing",
+      "area": "capability-negotiation",
+      "note": "Gemma 4 output is text only on every variant — speech output needs a separate TTS provider (E204).",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text", "image", "audio"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {"modalities_out": ["audio"]}
+      },
+      "expected": {"missing": ["audio output"]}
+    },
+    {
+      "id": "cn-006-context-window-too-small",
+      "area": "capability-negotiation",
+      "note": "The gap string carries both numbers — a bare 'context window' gap is not actionable.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text", "image"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {"context_tokens": 262144}
+      },
+      "expected": {"missing": ["context window (262144 needed, 131072 available)"]}
+    },
+    {
+      "id": "cn-007-context-window-exactly-equal-is-met",
+      "area": "capability-negotiation",
+      "note": "Boundary: needing exactly the declared window is not a gap.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text", "image"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 262144,
+          "thinking": true,
+          "egress": "device"
+        },
+        "requirements": {"context_tokens": 262144}
+      },
+      "expected": {"missing": []}
+    },
+    {
+      "id": "cn-008-every-gap-at-once-ordering",
+      "area": "capability-negotiation",
+      "note": "Gap ordering is part of the contract: input modalities (sorted by name), then output modalities (sorted), then tool calling, streaming, context window, thinking.",
+      "input": {
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": false,
+          "streaming": false,
+          "context_tokens": 8192,
+          "thinking": false,
+          "egress": "device"
+        },
+        "requirements": {
+          "modalities_in": ["image", "audio", "text"],
+          "modalities_out": ["audio", "image"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true
+        }
+      },
+      "expected": {
+        "missing": [
+          "audio input",
+          "image input",
+          "audio output",
+          "image output",
+          "tool calling",
+          "streaming",
+          "context window (131072 needed, 8192 available)",
+          "thinking"
+        ]
+      }
+    },
+    {
+      "id": "cn-009-precheck-audio-on-31b-raises-e203",
+      "area": "capability-negotiation",
+      "note": "Pre-network check: an audio part against a text+image model fails before a byte is sent. E203 is the registered code for a missing INPUT modality.",
+      "input": {
+        "model": "gemma4:31b",
+        "capabilities": {
+          "modalities_in": ["text", "image"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 262144,
+          "thinking": true,
+          "egress": "device"
+        },
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "audio", "data_b64": "V0FW"},
+                {"type": "text", "text": "Transcribe this visit."}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {"error": {"code": "E203"}}
+    },
+    {
+      "id": "cn-010-precheck-audio-on-e4b-passes",
+      "area": "capability-negotiation",
+      "note": "The same request against an audio-capable tag must pass cleanly — negotiation, not blanket refusal.",
+      "input": {
+        "model": "gemma4:e4b",
+        "capabilities": {
+          "modalities_in": ["text", "image", "audio"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 131072,
+          "thinking": true,
+          "egress": "device"
+        },
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "audio", "data_b64": "V0FW"},
+                {"type": "text", "text": "Transcribe this visit."}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {"ok": true}
+    },
+    {
+      "id": "cn-011-precheck-tools-on-model-without-tool-calling",
+      "area": "capability-negotiation",
+      "note": "Attaching tools makes tool calling a requirement of the request itself. E202.",
+      "input": {
+        "model": "legacy:text-only",
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": false,
+          "streaming": true,
+          "context_tokens": 8192,
+          "thinking": false,
+          "egress": "device"
+        },
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Look up MRN 12345."}]}
+          ],
+          "tools": [
+            {
+              "name": "lookup_patient",
+              "description": "Look up a patient by medical record number.",
+              "parameters": {
+                "type": "object",
+                "properties": {"mrn": {"type": "string"}},
+                "required": ["mrn"]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {"error": {"code": "E202"}}
+    },
+    {
+      "id": "cn-012-precheck-image-on-text-only-model",
+      "area": "capability-negotiation",
+      "note": "Unknown tags fall back to a conservative text-only declaration: declaring less costs a loud, fixable error; declaring more costs a silent wrong answer.",
+      "input": {
+        "model": "unknown:tiny",
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 8192,
+          "thinking": false,
+          "egress": "device"
+        },
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "text", "text": "What is in this scan?"},
+                {"type": "image", "data_b64": "WFJBWQ=="}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {"error": {"code": "E203"}}
+    },
+    {
+      "id": "cn-013-precheck-plain-text-always-passes",
+      "area": "capability-negotiation",
+      "note": "The common path: a text-only request against a text-only model needs no negotiation at all.",
+      "input": {
+        "model": "unknown:tiny",
+        "capabilities": {
+          "modalities_in": ["text"],
+          "modalities_out": ["text"],
+          "tool_calling": true,
+          "streaming": true,
+          "context_tokens": 8192,
+          "thinking": false,
+          "egress": "device"
+        },
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Hello."}]}
+          ]
+        }
+      },
+      "expected": {"ok": true}
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "suite": "policy",
+  "spec_version": "1.0.0",
+  "description": "Contract 2 — the privacy boundary. Sensitivity is a type, not a convention (invariant 1). Cases encode the enforcement matrix in docs/CONTRACTS.md plus the E303 provider ceiling. Redactors are the two spec-defined fixture redactors (see spec/conformance/README.md): `passthrough` (declared, changes nothing) and `mask-digits` (every ASCII digit becomes '#').",
+  "cases": [
+    {
+      "id": "pol-001-sensitive-to-device-provider-allowed-raw",
+      "area": "policy",
+      "note": "Matrix row 2, device column. On-device inference is the whole point: nothing leaves, so nothing is withheld.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": null},
+        "value": {"label": "intake_note", "text": "Patient J. Rivera, MRN 12345, DOB 1951-03-02.", "sensitive": true},
+        "provider": {"name": "ollama", "egress": "device"}
+      },
+      "expected": {"text": "Patient J. Rivera, MRN 12345, DOB 1951-03-02."}
+    },
+    {
+      "id": "pol-002-sensitive-to-trusted-network-allowed-raw",
+      "area": "policy",
+      "note": "Matrix row 2, trusted-network column: allowed because the project's egress limit is at least trusted-network.",
+      "input": {
+        "policy": {"egress": "trusted-network", "redactor": null},
+        "value": {"label": "intake_note", "text": "Patient J. Rivera, MRN 12345.", "sensitive": true},
+        "provider": {"name": "self-hosted-vllm", "egress": "trusted-network"}
+      },
+      "expected": {"text": "Patient J. Rivera, MRN 12345."}
+    },
+    {
+      "id": "pol-003-sensitive-to-public-cloud-no-redactor-raises-e301",
+      "area": "policy",
+      "note": "Matrix row 2, public-cloud column — the invariant-1 case. Un-redacted PHI never crosses the boundary, and the refusal is a runtime error, not a lint.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": null},
+        "value": {"label": "intake_note", "text": "Patient J. Rivera, MRN 12345.", "sensitive": true},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"error": {"code": "E301"}}
+    },
+    {
+      "id": "pol-004-sensitive-to-public-cloud-with-redactor-allowed-redacted",
+      "area": "policy",
+      "note": "Matrix row 3, public-cloud column: allowed REDACTED only. The mask-digits fixture redactor makes the transformation assertable in any language.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": "mask-digits"},
+        "value": {"label": "intake_note", "text": "Patient J. Rivera, MRN 12345, DOB 1951-03-02.", "sensitive": true},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"text": "Patient J. Rivera, MRN #####, DOB ####-##-##."}
+    },
+    {
+      "id": "pol-005-declared-passthrough-redactor-satisfies-the-boundary",
+      "area": "policy",
+      "note": "The boundary condition is 'a redactor was declared and ran', not 'the text changed'. A passthrough redactor that finds nothing to redact leaves the text intact and egress is allowed.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": "passthrough"},
+        "value": {"label": "note", "text": "No identifiers in this sentence.", "sensitive": true},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"text": "No identifiers in this sentence."}
+    },
+    {
+      "id": "pol-006-redaction-only-applies-at-public-cloud",
+      "area": "policy",
+      "note": "Matrix row 3, trusted-network column, resolved: a declared redactor does NOT redact below the public-cloud boundary. Redaction is required where the boundary requires it and nowhere else — otherwise on-device quality silently degrades.",
+      "input": {
+        "policy": {"egress": "trusted-network", "redactor": "mask-digits"},
+        "value": {"label": "intake_note", "text": "MRN 12345.", "sensitive": true},
+        "provider": {"name": "self-hosted-vllm", "egress": "trusted-network"}
+      },
+      "expected": {"text": "MRN 12345."}
+    },
+    {
+      "id": "pol-007-provider-above-egress-limit-raises-e303",
+      "area": "policy",
+      "note": "The E303 ceiling: a provider broader than [policy] egress is refused outright — sensitive or not. This case is NOT sensitive and is still refused.",
+      "input": {
+        "policy": {"egress": "device", "redactor": null},
+        "value": {"label": "public_summary", "text": "Sepsis screening guidance, 2026 edition.", "sensitive": false},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"error": {"code": "E303"}}
+    },
+    {
+      "id": "pol-008-e303-precedes-redaction",
+      "area": "policy",
+      "note": "Ordering matters: the provider ceiling is checked before the redactor runs. A declared redactor cannot buy egress the project never allowed.",
+      "input": {
+        "policy": {"egress": "device", "redactor": "mask-digits"},
+        "value": {"label": "intake_note", "text": "MRN 12345.", "sensitive": true},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"error": {"code": "E303"}}
+    },
+    {
+      "id": "pol-009-e303-applies-to-trusted-network-too",
+      "area": "policy",
+      "note": "device-only projects refuse self-hosted network providers as well. 'Broader than the limit' is the whole test — public-cloud is not a special case.",
+      "input": {
+        "policy": {"egress": "device", "redactor": "mask-digits"},
+        "value": {"label": "intake_note", "text": "MRN 12345.", "sensitive": true},
+        "provider": {"name": "self-hosted-vllm", "egress": "trusted-network"}
+      },
+      "expected": {"error": {"code": "E303"}}
+    },
+    {
+      "id": "pol-010-non-sensitive-within-limit-allowed",
+      "area": "policy",
+      "note": "Matrix row 1: non-sensitive values are allowed at every egress class the project permits. The boundary constrains sensitivity, not traffic.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": null},
+        "value": {"label": "public_summary", "text": "Sepsis screening guidance, 2026 edition.", "sensitive": false},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"text": "Sepsis screening guidance, 2026 edition."}
+    },
+    {
+      "id": "pol-011-device-only-project-device-provider",
+      "area": "policy",
+      "note": "The default posture of a generated project: egress=device, no redactor declared, everything local and everything allowed.",
+      "input": {
+        "policy": {"egress": "device", "redactor": null},
+        "value": {"label": "transcript", "text": "Chief complaint: chest pain, onset 03:15.", "sensitive": true},
+        "provider": {"name": "ollama", "egress": "device"}
+      },
+      "expected": {"text": "Chief complaint: chest pain, onset 03:15."}
+    },
+    {
+      "id": "pol-012-redaction-is-total-not-first-match",
+      "area": "policy",
+      "note": "Every match is replaced, not just the first — a redactor that stops early is an open boundary.",
+      "input": {
+        "policy": {"egress": "public-cloud", "redactor": "mask-digits"},
+        "value": {"label": "note", "text": "Room 4B, bed 12, pager 555-0199, MRN 000123.", "sensitive": true},
+        "provider": {"name": "cerebras", "egress": "public-cloud"}
+      },
+      "expected": {"text": "Room #B, bed ##, pager ###-####, MRN ######."}
+    }
+  ]
+}

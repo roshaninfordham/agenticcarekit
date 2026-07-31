@@ -1,0 +1,682 @@
+{
+  "suite": "message-build",
+  "spec_version": "1.0.0",
+  "description": "The canonical Ollama /api/chat payload, rule by rule (docs/CONTRACTS.md -> 'Canonical message build'). Expected payloads are hand-derived from the six rules and are the ground truth every implementation is judged against.",
+  "cases": [
+    {
+      "id": "mb-001-defaults-text-only",
+      "area": "message-build",
+      "note": "Rule 1: the Gemma 4 sampling defaults land in options even though the caller passed nothing. Context is never sent. No tools key when no tools.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Summarise the intake note."}]}
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "Summarise the intake note."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-002-sampling-overrides-win",
+      "area": "message-build",
+      "note": "Rule 1: an explicit value always beats the known-good default.",
+      "input": {
+        "model": "gemma4:e4b-mlx",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "List the vitals."}]}
+          ],
+          "temperature": 0.2,
+          "top_p": 0.5,
+          "top_k": 8
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b-mlx",
+        "messages": [
+          {"role": "user", "content": "List the vitals."}
+        ],
+        "options": {"temperature": 0.2, "top_p": 0.5, "top_k": 8},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-003-partial-override-zero-is-a-value",
+      "area": "message-build",
+      "note": "Rule 1 edge: temperature=0.0 is an override, not an absent value. Implementations that test falsiness instead of null fail here.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Return JSON only."}]}
+          ],
+          "temperature": 0.0
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "Return JSON only."}
+        ],
+        "options": {"temperature": 0.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-004-think-injects-system-message",
+      "area": "message-build",
+      "note": "Rule 2: think=True with no system message creates one, containing exactly the think token, at the start of the conversation.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Which differential is most likely?"}]}
+          ],
+          "think": true
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "system", "content": "<|think|>"},
+          {"role": "user", "content": "Which differential is most likely?"}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-005-think-prepends-to-existing-system",
+      "area": "message-build",
+      "note": "Rule 2: the token is prepended to the existing system content, not appended and not placed in a second system message.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "system", "parts": [{"type": "text", "text": "You are a clinical scribe."}]},
+            {"role": "user", "parts": [{"type": "text", "text": "Draft the SOAP note."}]}
+          ],
+          "think": true
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "system", "content": "<|think|>You are a clinical scribe."},
+          {"role": "user", "content": "Draft the SOAP note."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-006-think-applied-exactly-once",
+      "area": "message-build",
+      "note": "Rule 2: 'exactly once'. A system prompt that already carries the token is left alone — double injection is the bug this case exists to catch.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "system", "parts": [{"type": "text", "text": "<|think|>You are a clinical scribe."}]},
+            {"role": "user", "parts": [{"type": "text", "text": "Draft the SOAP note."}]}
+          ],
+          "think": true
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "system", "content": "<|think|>You are a clinical scribe."},
+          {"role": "user", "content": "Draft the SOAP note."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-007-no-think-no-system-injection",
+      "area": "message-build",
+      "note": "Rule 2 negative: think defaults to false, so no system message appears and no token is added.",
+      "input": {
+        "model": "gemma4:12b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Hello."}]}
+          ],
+          "think": false
+        }
+      },
+      "expected": {
+        "model": "gemma4:12b",
+        "messages": [
+          {"role": "user", "content": "Hello."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-008-thought-blocks-stripped-across-history",
+      "area": "message-build",
+      "note": "Rule 3 (quirk 3): prior-turn thought blocks are NEVER serialized, for any turn. This is the silent correctness bug the builder exists to prevent — no 'thinking' key may appear anywhere in the payload.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "system", "parts": [{"type": "text", "text": "You are a clinical scribe."}]},
+            {"role": "user", "parts": [{"type": "text", "text": "What is the plan?"}]},
+            {
+              "role": "assistant",
+              "parts": [{"type": "text", "text": "Start with vitals."}],
+              "thinking": "The patient is 74 and on anticoagulants; check INR first."
+            },
+            {"role": "user", "parts": [{"type": "text", "text": "And after that?"}]},
+            {
+              "role": "assistant",
+              "parts": [{"type": "text", "text": "Then review the medication list."}],
+              "thinking": "Second thought block, also confidential."
+            },
+            {"role": "user", "parts": [{"type": "text", "text": "Write it up."}]}
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "system", "content": "You are a clinical scribe."},
+          {"role": "user", "content": "What is the plan?"},
+          {"role": "assistant", "content": "Start with vitals."},
+          {"role": "user", "content": "And after that?"},
+          {"role": "assistant", "content": "Then review the medication list."},
+          {"role": "user", "content": "Write it up."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-009-thinking-stripped-under-think-mode",
+      "area": "message-build",
+      "note": "Rules 2 and 3 together: enabling thinking for THIS turn never resurrects the previous turn's thought block.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "assistant",
+              "parts": [{"type": "text", "text": "Prior answer."}],
+              "thinking": "Prior deliberation."
+            },
+            {"role": "user", "parts": [{"type": "text", "text": "Try again."}]}
+          ],
+          "think": true
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "system", "content": "<|think|>"},
+          {"role": "assistant", "content": "Prior answer."},
+          {"role": "user", "content": "Try again."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-010-modality-arrays-image-and-audio",
+      "area": "message-build",
+      "note": "Rule 4 (quirk 4): images and audio leave the message body and become their own arrays, which is what puts them ahead of the text on the wire. Rule 5: a present image sets vision_tokens (default preset = 280).",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "text", "text": "Describe both attachments."},
+                {"type": "image", "data_b64": "SU1H"},
+                {"type": "audio", "data_b64": "QVVE"}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Describe both attachments.",
+            "images": ["SU1H"],
+            "audio": ["QVVE"]
+          }
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "vision_tokens": 280},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-011-media-order-preserved-within-array",
+      "area": "message-build",
+      "note": "Rule 4: declaration order inside each media array is preserved even when text parts are interleaved between them.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "image", "data_b64": "SU1H", "detail": "caption"},
+                {"type": "text", "text": "First."},
+                {"type": "image", "data_b64": "SU1HMg==", "detail": "caption"},
+                {"type": "text", "text": "Second."}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "First.\n\nSecond.",
+            "images": ["SU1H", "SU1HMg=="]
+          }
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "vision_tokens": 140},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-012-multiple-text-parts-join",
+      "area": "message-build",
+      "note": "Rule 4: several text parts join with a blank line into one content string.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "text", "text": "One."},
+                {"type": "text", "text": "Two."},
+                {"type": "text", "text": "Three."}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "One.\n\nTwo.\n\nThree."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-013-vision-preset-highest-wins",
+      "area": "message-build",
+      "note": "Rule 5 (quirk 5): across several images the highest preset wins — minimal=70, caption=140, default=280, detail=560, ocr=1120.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "image", "data_b64": "SU1H", "detail": "caption"},
+                {"type": "text", "text": "Read the label in the second scan."}
+              ]
+            },
+            {
+              "role": "user",
+              "parts": [
+                {"type": "image", "data_b64": "WFJBWQ==", "detail": "ocr"}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Read the label in the second scan.",
+            "images": ["SU1H"]
+          },
+          {
+            "role": "user",
+            "content": "",
+            "images": ["WFJBWQ=="]
+          }
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "vision_tokens": 1120},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-014-vision-preset-minimal",
+      "area": "message-build",
+      "note": "Rule 5: the lowest preset, on an image-only message. content is the join of zero text parts, i.e. the empty string.",
+      "input": {
+        "model": "gemma4:26b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [{"type": "image", "data_b64": "SU1H", "detail": "minimal"}]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:26b",
+        "messages": [
+          {"role": "user", "content": "", "images": ["SU1H"]}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "vision_tokens": 70},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-015-no-vision-tokens-without-images",
+      "area": "message-build",
+      "note": "Rule 5 negative: audio alone must NOT introduce a vision budget.",
+      "input": {
+        "model": "gemma4:e2b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "audio", "data_b64": "V0FW", "format": "wav"},
+                {"type": "text", "text": "Transcribe this."}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e2b",
+        "messages": [
+          {"role": "user", "content": "Transcribe this.", "audio": ["V0FW"]}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-016-raw-bytes-are-base64-encoded",
+      "area": "message-build",
+      "note": "Rule 6: raw bytes are base64-encoded on the way out. data_utf8 carries the literal bytes b\"IMG\", which encode to SU1H — an already-base64 string (mb-010) passes through untouched instead.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {
+              "role": "user",
+              "parts": [
+                {"type": "image", "data_utf8": "IMG"},
+                {"type": "audio", "data_utf8": "AUD"}
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "", "images": ["SU1H"], "audio": ["QVVE"]}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "vision_tokens": 280},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-017-stop-and-max-tokens-mapping",
+      "area": "message-build",
+      "note": "Rule 1: max_tokens maps to options.num_predict and stop to options.stop, both under Ollama's names. Context length is deliberately absent.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Continue the note."}]}
+          ],
+          "max_tokens": 256,
+          "stop": ["\n\nUser:", "<|end|>"]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "Continue the note."}
+        ],
+        "options": {
+          "temperature": 1.0,
+          "top_p": 0.95,
+          "top_k": 64,
+          "num_predict": 256,
+          "stop": ["\n\nUser:", "<|end|>"]
+        },
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-018-tool-schema-passthrough",
+      "area": "message-build",
+      "note": "Tools serialize through ToolSpec.as_function_schema() verbatim, in declaration order: {type: function, function: {name, description, parameters}}. The parameters schema is passed through unmodified.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Look up MRN 12345."}]}
+          ],
+          "tools": [
+            {
+              "name": "lookup_patient",
+              "description": "Look up a patient by medical record number.",
+              "parameters": {
+                "type": "object",
+                "properties": {"mrn": {"type": "string"}},
+                "required": ["mrn"]
+              }
+            },
+            {
+              "name": "list_medications",
+              "description": "List active medications for a patient.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "mrn": {"type": "string"},
+                  "include_discontinued": {"type": "boolean"}
+                },
+                "required": ["mrn"]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "Look up MRN 12345."}
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "lookup_patient",
+              "description": "Look up a patient by medical record number.",
+              "parameters": {
+                "type": "object",
+                "properties": {"mrn": {"type": "string"}},
+                "required": ["mrn"]
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "list_medications",
+              "description": "List active medications for a patient.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "mrn": {"type": "string"},
+                  "include_discontinued": {"type": "boolean"}
+                },
+                "required": ["mrn"]
+              }
+            }
+          }
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-019-tool-call-and-tool-result-turns",
+      "area": "message-build",
+      "note": "Rule 3: an assistant tool-call turn serializes tool_calls (and still drops thinking); a tool-result turn carries tool_call_id as Ollama's tool_name.",
+      "input": {
+        "model": "gemma4:e4b",
+        "request": {
+          "messages": [
+            {"role": "user", "parts": [{"type": "text", "text": "Look up MRN 12345."}]},
+            {
+              "role": "assistant",
+              "parts": [],
+              "thinking": "The MRN is well formed, call the tool.",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "name": "lookup_patient",
+                  "arguments": {"mrn": "12345"}
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "parts": [{"type": "text", "text": "{\"name\": \"J. Rivera\", \"dob\": \"1951-03-02\"}"}],
+              "tool_call_id": "lookup_patient"
+            },
+            {"role": "user", "parts": [{"type": "text", "text": "Summarise."}]}
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b",
+        "messages": [
+          {"role": "user", "content": "Look up MRN 12345."},
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {"function": {"name": "lookup_patient", "arguments": {"mrn": "12345"}}}
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "{\"name\": \"J. Rivera\", \"dob\": \"1951-03-02\"}",
+            "tool_name": "lookup_patient"
+          },
+          {"role": "user", "content": "Summarise."}
+        ],
+        "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        "stream": false
+      }
+    },
+    {
+      "id": "mb-020-everything-at-once",
+      "area": "message-build",
+      "note": "All six rules in one payload: think injection into an existing system prompt, stripped history thinking, joined text, media arrays, highest vision preset, overrides, stop/max_tokens, and tools.",
+      "input": {
+        "model": "gemma4:e4b-mlx",
+        "request": {
+          "messages": [
+            {"role": "system", "parts": [{"type": "text", "text": "You are a decision-support assistant."}]},
+            {
+              "role": "assistant",
+              "parts": [{"type": "text", "text": "Earlier summary."}],
+              "thinking": "Confidential prior deliberation."
+            },
+            {
+              "role": "user",
+              "parts": [
+                {"type": "text", "text": "Read the chart."},
+                {"type": "image", "data_b64": "WFJBWQ==", "detail": "ocr"},
+                {"type": "image", "data_b64": "SU1H", "detail": "minimal"},
+                {"type": "audio", "data_b64": "QVVE"},
+                {"type": "text", "text": "Then answer in one line."}
+              ]
+            }
+          ],
+          "think": true,
+          "temperature": 0.4,
+          "max_tokens": 128,
+          "stop": ["END"],
+          "tools": [
+            {
+              "name": "flag_for_review",
+              "description": "Flag a case for clinician review.",
+              "parameters": {
+                "type": "object",
+                "properties": {"reason": {"type": "string"}},
+                "required": ["reason"]
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "model": "gemma4:e4b-mlx",
+        "messages": [
+          {"role": "system", "content": "<|think|>You are a decision-support assistant."},
+          {"role": "assistant", "content": "Earlier summary."},
+          {
+            "role": "user",
+            "content": "Read the chart.\n\nThen answer in one line.",
+            "images": ["WFJBWQ==", "SU1H"],
+            "audio": ["QVVE"]
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "flag_for_review",
+              "description": "Flag a case for clinician review.",
+              "parameters": {
+                "type": "object",
+                "properties": {"reason": {"type": "string"}},
+                "required": ["reason"]
+              }
+            }
+          }
+        ],
+        "options": {
+          "temperature": 0.4,
+          "top_p": 0.95,
+          "top_k": 64,
+          "num_predict": 128,
+          "stop": ["END"],
+          "vision_tokens": 1120
+        },
+        "stream": false
+      }
+    }
+  ]
+}

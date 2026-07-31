@@ -1,0 +1,191 @@
+{
+  "suite": "trace-shape",
+  "spec_version": "1.0.0",
+  "description": "Contract 4 — one trace shape for every model call, tool call, redaction, policy decision and error. Cases with an `event` key are validated against spec/schemas/trace-event.schema.json; cases with an `events` key exercise the bytes-egressed aggregation that powers the '0 bytes egressed' panel.",
+  "cases": [
+    {
+      "id": "tr-001-minimal-valid-model-event",
+      "area": "trace-shape",
+      "note": "All eight fields present, parent_span_id null at the root of a run.",
+      "input": {
+        "event": {
+          "ts": 1767225600.0,
+          "run_id": "run-01",
+          "span_id": "span-01",
+          "parent_span_id": null,
+          "kind": "model",
+          "egress": "device",
+          "bytes_out": 0,
+          "payload": {
+            "model": "gemma4:e4b",
+            "provider": "ollama",
+            "input_tokens": 412,
+            "output_tokens": 88,
+            "duration_ms": 1840
+          }
+        }
+      },
+      "expected": {"valid": true}
+    },
+    {
+      "id": "tr-002-valid-child-span",
+      "area": "trace-shape",
+      "note": "parent_span_id as a string links a tool call to its model span.",
+      "input": {
+        "event": {
+          "ts": 1767225601.5,
+          "run_id": "run-01",
+          "span_id": "span-02",
+          "parent_span_id": "span-01",
+          "kind": "tool",
+          "egress": "device",
+          "bytes_out": 0,
+          "payload": {"tool": "lookup_patient", "ok": true}
+        }
+      },
+      "expected": {"valid": true}
+    },
+    {
+      "id": "tr-003-missing-bytes-out-is-invalid",
+      "area": "trace-shape",
+      "note": "bytes_out is required on every event — the egress panel cannot have holes in it.",
+      "input": {
+        "event": {
+          "ts": 1767225602.0,
+          "run_id": "run-01",
+          "span_id": "span-03",
+          "parent_span_id": null,
+          "kind": "model",
+          "egress": "public-cloud",
+          "payload": {}
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-004-unknown-kind-is-invalid",
+      "area": "trace-shape",
+      "note": "kind is a closed set: model | tool | redaction | policy | error. New needs amend the contract, they do not widen it in place.",
+      "input": {
+        "event": {
+          "ts": 1767225603.0,
+          "run_id": "run-01",
+          "span_id": "span-04",
+          "parent_span_id": null,
+          "kind": "audit",
+          "egress": "device",
+          "bytes_out": 0,
+          "payload": {}
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-005-unknown-egress-class-is-invalid",
+      "area": "trace-shape",
+      "note": "The privacy boundary is defined over exactly three egress classes and nothing else.",
+      "input": {
+        "event": {
+          "ts": 1767225604.0,
+          "run_id": "run-01",
+          "span_id": "span-05",
+          "parent_span_id": null,
+          "kind": "policy",
+          "egress": "vpc",
+          "bytes_out": 0,
+          "payload": {"decision": "allow"}
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-006-extra-top-level-field-is-invalid",
+      "area": "trace-shape",
+      "note": "The event carries exactly eight fields; anything extra belongs in payload. Free-form top-level keys are how trace formats rot.",
+      "input": {
+        "event": {
+          "ts": 1767225605.0,
+          "run_id": "run-01",
+          "span_id": "span-06",
+          "parent_span_id": null,
+          "kind": "redaction",
+          "egress": "device",
+          "bytes_out": 0,
+          "payload": {"redactor": "mask-digits", "categories": ["DIGITS"], "count": 3},
+          "user_id": "dr-lin"
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-007-negative-bytes-out-is-invalid",
+      "area": "trace-shape",
+      "note": "bytes_out is a count, never a delta.",
+      "input": {
+        "event": {
+          "ts": 1767225606.0,
+          "run_id": "run-01",
+          "span_id": "span-07",
+          "parent_span_id": null,
+          "kind": "model",
+          "egress": "public-cloud",
+          "bytes_out": -1,
+          "payload": {}
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-008-payload-must-be-an-object",
+      "area": "trace-shape",
+      "note": "payload is an object so sinks can merge conventions into it without reshaping the record.",
+      "input": {
+        "event": {
+          "ts": 1767225607.0,
+          "run_id": "run-01",
+          "span_id": "span-08",
+          "parent_span_id": null,
+          "kind": "error",
+          "egress": "device",
+          "bytes_out": 0,
+          "payload": "E102 provider request failed"
+        }
+      },
+      "expected": {"valid": false}
+    },
+    {
+      "id": "tr-009-bytes-egressed-sums-non-device-events",
+      "area": "trace-shape",
+      "note": "The aggregation behind the panel: sum bytes_out over events whose egress is not device. Device events are excluded no matter how large.",
+      "input": {
+        "events": [
+          {"ts": 1.0, "run_id": "run-02", "span_id": "s1", "parent_span_id": null, "kind": "model", "egress": "device", "bytes_out": 98304, "payload": {}},
+          {"ts": 2.0, "run_id": "run-02", "span_id": "s2", "parent_span_id": "s1", "kind": "model", "egress": "public-cloud", "bytes_out": 1024, "payload": {}},
+          {"ts": 3.0, "run_id": "run-02", "span_id": "s3", "parent_span_id": "s1", "kind": "tool", "egress": "trusted-network", "bytes_out": 210, "payload": {}},
+          {"ts": 4.0, "run_id": "run-02", "span_id": "s4", "parent_span_id": null, "kind": "policy", "egress": "device", "bytes_out": 0, "payload": {}}
+        ]
+      },
+      "expected": {"bytes_egressed": 1234}
+    },
+    {
+      "id": "tr-010-bytes-egressed-zero-for-fully-local-run",
+      "area": "trace-shape",
+      "note": "The claim the demo makes: a device-only run egresses zero bytes even when it moves megabytes locally.",
+      "input": {
+        "events": [
+          {"ts": 1.0, "run_id": "run-03", "span_id": "s1", "parent_span_id": null, "kind": "model", "egress": "device", "bytes_out": 4194304, "payload": {}},
+          {"ts": 2.0, "run_id": "run-03", "span_id": "s2", "parent_span_id": "s1", "kind": "tool", "egress": "device", "bytes_out": 512, "payload": {}},
+          {"ts": 3.0, "run_id": "run-03", "span_id": "s3", "parent_span_id": "s1", "kind": "redaction", "egress": "device", "bytes_out": 0, "payload": {}}
+        ]
+      },
+      "expected": {"bytes_egressed": 0}
+    },
+    {
+      "id": "tr-011-bytes-egressed-empty-run",
+      "area": "trace-shape",
+      "note": "No events is zero, not an error.",
+      "input": {"events": []},
+      "expected": {"bytes_egressed": 0}
+    }
+  ]
+}

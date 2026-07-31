@@ -1,0 +1,194 @@
+{
+  "suite": "config",
+  "spec_version": "1.0.0",
+  "description": "Contract 5 — ack.toml. Input is the literal file TEXT; expected is the normalized parsed form (see spec/conformance/README.md for the shape) or a registered E4xx code. `raw_keys` asserts that unknown user sections survive parsing: `ack sync` must never destroy hand edits.",
+  "cases": [
+    {
+      "id": "cfg-001-minimal-required-sections",
+      "area": "config",
+      "note": "Only [project] and [model] are required; every other field has a declared default. egress defaults to device — private by default is the default, not an opt-in.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:gemma4:e4b\"\n"
+      },
+      "expected": {
+        "blueprint": "on-device",
+        "pack": "healthcare",
+        "model_primary": {"provider": "ollama", "model": "gemma4:e4b"},
+        "model_fallback": null,
+        "egress": "device",
+        "redactor": null,
+        "capabilities": [],
+        "raw_keys": ["model", "project"]
+      }
+    },
+    {
+      "id": "cfg-002-full-config",
+      "area": "config",
+      "note": "Every section populated. A model ref splits on the FIRST colon only: ollama:gemma4:e4b-mlx is provider 'ollama', model 'gemma4:e4b-mlx'.",
+      "input": {
+        "toml": "[project]\nblueprint = \"voice-care\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:gemma4:e4b-mlx\"\nfallback = \"cerebras:gemma-4-31b\"\n\n[policy]\negress = \"device\"\nredactor = \"healthcare.phi\"\n\n[capabilities]\nenabled = [\"voice\", \"extract\"]\n"
+      },
+      "expected": {
+        "blueprint": "voice-care",
+        "pack": "healthcare",
+        "model_primary": {"provider": "ollama", "model": "gemma4:e4b-mlx"},
+        "model_fallback": {"provider": "cerebras", "model": "gemma-4-31b"},
+        "egress": "device",
+        "redactor": "healthcare.phi",
+        "capabilities": ["voice", "extract"],
+        "raw_keys": ["capabilities", "model", "policy", "project"]
+      }
+    },
+    {
+      "id": "cfg-003-public-cloud-egress-accepted",
+      "area": "config",
+      "note": "Raising the boundary is allowed — deliberately, in the file, where a reviewer can see it.",
+      "input": {
+        "toml": "[project]\nblueprint = \"care-copilot\"\npack = \"healthcare\"\n\n[model]\nprimary = \"cerebras:gemma-4-31b\"\n\n[policy]\negress = \"public-cloud\"\nredactor = \"healthcare.phi\"\n"
+      },
+      "expected": {
+        "blueprint": "care-copilot",
+        "pack": "healthcare",
+        "model_primary": {"provider": "cerebras", "model": "gemma-4-31b"},
+        "model_fallback": null,
+        "egress": "public-cloud",
+        "redactor": "healthcare.phi",
+        "capabilities": [],
+        "raw_keys": ["model", "policy", "project"]
+      }
+    },
+    {
+      "id": "cfg-004-unknown-sections-are-preserved",
+      "area": "config",
+      "note": "Users and agents extend this file. Unknown sections and keys are preserved in raw so `ack sync` reconciles instead of overwriting.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\nowner = \"cardiology\"\n\n[model]\nprimary = \"ollama:gemma4:e4b\"\n\n[team]\noncall = \"dr-lin\"\n\n[deploy]\ntarget = \"clinic-laptop\"\n"
+      },
+      "expected": {
+        "blueprint": "on-device",
+        "pack": "healthcare",
+        "model_primary": {"provider": "ollama", "model": "gemma4:e4b"},
+        "model_fallback": null,
+        "egress": "device",
+        "redactor": null,
+        "capabilities": [],
+        "raw_keys": ["deploy", "model", "project", "team"]
+      }
+    },
+    {
+      "id": "cfg-005-empty-capabilities-list",
+      "area": "config",
+      "note": "An explicitly empty capability list is not the same file as an absent section, but it parses to the same value.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"_template\"\n\n[model]\nprimary = \"ollama:gemma4:e2b\"\n\n[capabilities]\nenabled = []\n"
+      },
+      "expected": {
+        "blueprint": "on-device",
+        "pack": "_template",
+        "model_primary": {"provider": "ollama", "model": "gemma4:e2b"},
+        "model_fallback": null,
+        "egress": "device",
+        "redactor": null,
+        "capabilities": [],
+        "raw_keys": ["capabilities", "model", "project"]
+      }
+    },
+    {
+      "id": "cfg-006-missing-model-section-raises-e402",
+      "area": "config",
+      "note": "[project] and [model] are required; the runtime cannot pick a model without them.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n"
+      },
+      "expected": {"error": {"code": "E402"}}
+    },
+    {
+      "id": "cfg-007-missing-project-section-raises-e402",
+      "area": "config",
+      "input": {
+        "toml": "[model]\nprimary = \"ollama:gemma4:e4b\"\n"
+      },
+      "expected": {"error": {"code": "E402"}}
+    },
+    {
+      "id": "cfg-008-invalid-egress-class-raises-e403",
+      "area": "config",
+      "note": "The privacy boundary is defined over exactly device / trusted-network / public-cloud. A near-miss is refused, never coerced.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:gemma4:e4b\"\n\n[policy]\negress = \"cloud\"\n"
+      },
+      "expected": {"error": {"code": "E403"}}
+    },
+    {
+      "id": "cfg-009-malformed-toml-raises-e401",
+      "area": "config",
+      "note": "The file is meant to be hand-edited, so a syntax error is an expected condition with a named fix — not a stack trace.",
+      "input": {
+        "toml": "[project\nblueprint = \"on-device\"\n"
+      },
+      "expected": {"error": {"code": "E401"}}
+    },
+    {
+      "id": "cfg-010-model-ref-without-provider-raises-e401",
+      "area": "config",
+      "note": "Model references are provider-qualified: no separator, no reference. Note the limit of this check — a ref splits on the FIRST colon, so the bare Ollama tag 'gemma4:e4b' parses as provider 'gemma4' rather than failing. That ambiguity is inherent to the format, and the fix is the recommendation engine writing qualified refs, not a parser heuristic.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n\n[model]\nprimary = \"gemma4-e4b\"\n"
+      },
+      "expected": {"error": {"code": "E401"}}
+    },
+    {
+      "id": "cfg-011-empty-model-ref-raises-e401",
+      "area": "config",
+      "note": "A provider with no model is as unusable as no provider.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:\"\n"
+      },
+      "expected": {"error": {"code": "E401"}}
+    },
+    {
+      "id": "cfg-012-serialization-is-a-fixpoint",
+      "area": "config",
+      "note": "Determinism (invariant 4): parse -> serialize -> parse -> serialize must reach a fixpoint, byte-identical, with the same normalized form. Agents navigate by convention and break on surprises.",
+      "input": {
+        "toml": "[project]\nblueprint = \"voice-care\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:gemma4:e4b-mlx\"\nfallback = \"cerebras:gemma-4-31b\"\n\n[policy]\negress = \"device\"\nredactor = \"healthcare.phi\"\n\n[capabilities]\nenabled = [\"voice\", \"extract\"]\n",
+        "mode": "fixpoint"
+      },
+      "expected": {
+        "fixpoint": true,
+        "normalized": {
+          "blueprint": "voice-care",
+          "pack": "healthcare",
+          "model_primary": {"provider": "ollama", "model": "gemma4:e4b-mlx"},
+          "model_fallback": {"provider": "cerebras", "model": "gemma-4-31b"},
+          "egress": "device",
+          "redactor": "healthcare.phi",
+          "capabilities": ["voice", "extract"],
+          "raw_keys": ["capabilities", "model", "policy", "project"]
+        }
+      }
+    },
+    {
+      "id": "cfg-013-fixpoint-from-minimal-config",
+      "area": "config",
+      "note": "Round-tripping a minimal config fills in the declared defaults and then stops changing — the second serialization equals the first.",
+      "input": {
+        "toml": "[project]\nblueprint = \"on-device\"\npack = \"healthcare\"\n\n[model]\nprimary = \"ollama:gemma4:e4b\"\n",
+        "mode": "fixpoint"
+      },
+      "expected": {
+        "fixpoint": true,
+        "normalized": {
+          "blueprint": "on-device",
+          "pack": "healthcare",
+          "model_primary": {"provider": "ollama", "model": "gemma4:e4b"},
+          "model_fallback": null,
+          "egress": "device",
+          "redactor": null,
+          "capabilities": [],
+          "raw_keys": ["capabilities", "model", "policy", "project"]
+        }
+      }
+    }
+  ]
+}
