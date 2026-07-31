@@ -1,0 +1,196 @@
+# agenticcarekit — first-party plugin registry
+#
+# What this file is: an inventory of the packs, blueprints, providers and redactors
+# that ship inside the `agenticcarekit` distribution. It is documentation and a
+# machine-readable index. It is NOT a loader — nothing in the runtime reads this file
+# to decide what exists.
+#
+# How third-party plugins are discovered
+# --------------------------------------
+# By Python entry points, not by editing this file. Declare the group in your own
+# package's pyproject.toml, install the package, and the plugin appears:
+#
+#     [project.entry-points."agenticcarekit.packs"]
+#     cardio = "mypackage.cardio"
+#
+# `agenticcarekit.packs` is the group declared and used today (see the repo's
+# pyproject.toml and packs/_template/README.md). Groups for the other four extension
+# points follow the same naming convention and are reserved here so first- and
+# third-party plugins agree on names; see [entry_point_groups] below for which are
+# live and which are reserved.
+#
+# Scaffold any extension point with a working example rather than a stub:
+#
+#     ack new pack <name>        ack new provider <name>     ack new blueprint <name>
+#     ack new redactor <name>    ack new capability <name>
+#
+# Conformance
+# -----------
+# A plugin that reimplements contract behaviour (notably a Provider or a language port)
+# should prove itself against the shared corpus rather than a hand-written test:
+#
+#     python3 spec/conformance/runner.py <your-adapter-command>
+#
+# The adapter protocol is documented in spec/conformance/README.md. Do not vendor the
+# fixtures — a plugin that copies them has forked the spec.
+#
+# `ack verify-plugin <name>`, which would wrap the above and hand authors a green check
+# before publishing, is ROADMAP. It is not implemented; there is no such command in
+# `ack --help` and nothing in cli/scaffolds.py provides it. Run the runner directly.
+#
+# Every entry below is checkable against the tree. Nothing here is aspirational.
+
+[registry]
+version = 1
+generated_by = "hand-maintained; verify against the tree before trusting an entry"
+package = "agenticcarekit"
+package_version = "0.1.0"
+repository = "https://github.com/roshaninfordham/agenticcarekit"
+license = "Apache-2.0"
+
+[entry_point_groups]
+# group name -> status
+packs = "live"            # declared in pyproject.toml, documented in packs/_template/README.md
+blueprints = "reserved"   # first-party blueprints ship in-tree; use --blueprint-path or ACK_BLUEPRINT_PATH
+providers = "reserved"    # construct a Provider directly and pass it where one is expected
+redactors = "reserved"    # pass {name: Redactor} to Policy(redactors=...)
+capabilities = "reserved" # first-party capabilities are listed in cli/project_ops.py::KNOWN_CAPABILITIES
+
+# ── packs ────────────────────────────────────────────────────────────────────
+
+[[packs]]
+name = "healthcare"
+module = "agenticcarekit.packs.healthcare"
+entry_point = "agenticcarekit.packs:healthcare = \"agenticcarekit.packs.healthcare\""
+manifest = "packages/agenticcarekit/packs/healthcare/manifest.toml"
+readme = "packages/agenticcarekit/packs/healthcare/README.md"
+description = "FHIR-lite clinical models, an 18-category HIPAA Safe Harbor PHI redactor, a seeded synthetic data generator, and two clinical eval sets."
+provides_models = ["Patient", "Encounter", "Observation", "DocumentReference", "MedicationStatement"]
+provides_redactors = ["healthcare.phi"]
+provides_evalsets = ["evalsets/phi_labelled.jsonl", "evalsets/intake_extraction.jsonl"]
+status = "shipped"
+
+[[packs]]
+name = "_template"
+module = "agenticcarekit.packs._template"
+entry_point = "not declared — in-tree reference pack, imported directly"
+manifest = "packages/agenticcarekit/packs/_template/manifest.toml"
+readme = "packages/agenticcarekit/packs/_template/README.md"
+description = "A near-empty second pack. Exists so the pack interface is an interface rather than a folder that gets redesigned the first time someone tries a second domain."
+provides_models = ["Example"]
+provides_redactors = ["_template.none"]
+provides_evalsets = []
+status = "shipped"
+
+# ── blueprints ───────────────────────────────────────────────────────────────
+# Scope constraint, all three: decision support only — documentation, navigation,
+# accessibility, triage routing, education. Not diagnosis, not treatment. Synthetic or
+# public data only.
+
+[[blueprints]]
+name = "voice-care"
+track = "Voice for Care"
+path = "packages/agenticcarekit/blueprints/voice-care"
+description = "Voice intake and clinical scribe: turn a spoken (or typed) patient encounter into a structured, human-reviewed intake note."
+requires_modalities_in = ["text", "audio"]
+requires_tool_calling = true
+requires_context_tokens = 32768
+default_capabilities = ["voice", "extract"]
+default_pack = "healthcare"
+status = "shipped"
+demo_offline = "broken — app/main.py calls VoiceLoop(provider=...); the landed signature is VoiceLoop(asr, llm, tts)"
+
+[[blueprints]]
+name = "care-copilot"
+track = "Agentic Care Copilots"
+path = "packages/agenticcarekit/blueprints/care-copilot"
+description = "Agentic administrative copilot for prior-authorization drafting, referral routing, and scheduling. Paperwork assistance, not clinical decision-making; the prior-auth tool drafts and never submits."
+requires_modalities_in = ["text"]
+requires_tool_calling = true
+requires_context_tokens = 65536
+default_capabilities = ["agents", "extract"]
+default_pack = "healthcare"
+status = "shipped"
+demo_offline = "broken — app/main.py calls AgentLoop(system_prompt=...), which is not a parameter"
+
+[[blueprints]]
+name = "on-device"
+track = "On-Device"
+path = "packages/agenticcarekit/blueprints/on-device"
+description = "Fully offline patient-intake summariser. Nothing leaves the machine, and the demo proves it by rendering the trace's 0-bytes-egressed panel."
+requires_modalities_in = ["text"]
+requires_tool_calling = false
+requires_context_tokens = 8192
+default_capabilities = ["extract"]
+default_pack = "healthcare"
+status = "shipped"
+demo_offline = "works"
+
+# ── providers ────────────────────────────────────────────────────────────────
+# Resolved from an `ack.toml` model reference by
+# agenticcarekit.kernel.providers.factory:provider_for. Only `ollama`, `cerebras` and
+# `mock` are resolvable from a bare `provider:model` string; the generic
+# OpenAI-compatible provider needs an explicit base URL and is constructed directly.
+
+[[providers]]
+name = "ollama"
+class = "agenticcarekit.kernel.providers.ollama:OllamaProvider"
+egress = "device"
+default_host = "http://127.0.0.1:11434"
+raw_client_attr = "client"
+support = "supported"
+verified_by = "conformance (20 message-build cases, green on Python and TypeScript) + transport tests against recorded /api/chat shapes via httpx.MockTransport. No live-network CI."
+
+[[providers]]
+name = "cerebras"
+class = "agenticcarekit.kernel.providers.cerebras:CerebrasProvider"
+egress = "public-cloud"
+base_url = "https://api.cerebras.ai/v1"
+api_key_env = "CEREBRAS_API_KEY"
+raw_client_attr = "client"
+support = "declared-untested"
+verified_by = "none — no recorded transcript and no live call. Stated in the class docstring."
+
+[[providers]]
+name = "openai-compatible"
+class = "agenticcarekit.kernel.providers.openai_compat:OpenAICompatibleProvider"
+egress = "public-cloud"
+api_key_env = "caller-supplied"
+raw_client_attr = "client"
+support = "declared-untested"
+notes = "Maps the same builder decisions onto /chat/completions. top_k cannot be expressed in that schema and is omitted rather than faked. Needs an explicit base_url; a bare 'openai:' reference raises E401."
+
+[[providers]]
+name = "mock"
+class = "agenticcarekit.kernel.providers.mock:MockProvider"
+egress = "device"
+support = "supported"
+notes = "Cycles canned responses, records requests, declares full device capabilities by default, and enforces the same pre-network capability check. What provider_for returns when offline=True."
+
+# ── redactors ────────────────────────────────────────────────────────────────
+# Redactor implementations live in packs, never in the kernel. Register one by passing
+# {name: instance} to Policy(redactors=...), or name it in [policy] redactor in ack.toml.
+
+[[redactors]]
+name = "healthcare.phi"
+class = "agenticcarekit.packs.healthcare.phi:PHIRedactor"
+pack = "healthcare"
+covers = "the 18 HIPAA Safe Harbor identifier categories, emitted as 19 trace categories (AGE is split from DATE for a more informative trace)"
+method = "regex plus a curated wordlist"
+precision = 0.9688
+recall = 0.9394
+measured_on = "packages/agenticcarekit/packs/healthcare/evalsets/phi_labelled.jsonl (33 hand-written sentences, entity-level match: category + overlapping span)"
+caveat = "Pattern-matching de-identification, NOT certified HIPAA Safe Harbor de-identification. No clinical NLP model, no manual review, no legal sign-off. NAME and DATE carry the misses."
+
+[[redactors]]
+name = "_template.none"
+class = "agenticcarekit.packs._template.redactor:TemplateRedactor"
+pack = "_template"
+covers = "nothing — pure passthrough, returns the input unchanged with zero redactions"
+method = "none"
+caveat = "A reference implementation of the Redactor protocol. Declaring it satisfies the boundary's 'a redactor was declared and ran' condition while removing nothing, which is exactly why you must not use it as a privacy control."
+
+# ── community index ──────────────────────────────────────────────────────────
+# A public index linking third-party packs, providers, redactors, capabilities and
+# blueprints is ROADMAP. Until it exists, publish to PyPI with the entry point declared
+# and the plugin is discoverable by anyone who installs it — no registration required.
