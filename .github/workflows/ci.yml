@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: python (lint, tests, conformance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Sync environment
+        run: uv sync --group dev
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests (excluding TS gate)
+        run: uv run pytest -q --deselect tests/test_conformance_ts.py
+      - name: Conformance — Python adapter
+        run: uv run python spec/conformance/runner.py --json uv run python spec/conformance/adapters/python.py
+
+  typescript:
+    name: typescript (build, tests, conformance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Sync environment
+        run: uv sync --group dev
+      - name: Build TS package
+        working-directory: packages/ts
+        run: npm ci && npm run build
+      - name: TS unit tests
+        working-directory: packages/ts
+        run: npm test
+      - name: Conformance — TypeScript adapter (must not skip)
+        run: uv run pytest tests/test_conformance_ts.py -q
