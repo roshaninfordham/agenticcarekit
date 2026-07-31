@@ -145,7 +145,7 @@ egress, bytes_out, payload`.
 Payload conventions (informative, not schema-enforced): `model` events
 carry `{"model", "provider", "input_tokens", "output_tokens", "duration_ms"}`;
 `redaction` events carry `{"redactor", "categories", "count"}`; `policy`
-events carry `{"decision": "allow"|"deny", "reason", "call_site"}`.
+events carry `{"decision": "allow"|"allow-redacted"|"deny", "reason", "call_site"}`.
 
 ---
 
