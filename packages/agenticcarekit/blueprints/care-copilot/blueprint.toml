@@ -1,0 +1,13 @@
+[blueprint]
+name = "care-copilot"
+description = "Agentic administrative copilot for prior authorization drafting, referral routing, and scheduling — paperwork assistance, not clinical decision-making."
+track = "Agentic Care Copilots"
+
+[requires]
+modalities_in = ["text"]
+tool_calling = true
+context_tokens = 65536
+
+[defaults]
+capabilities = ["agents", "extract"]
+pack = "healthcare"

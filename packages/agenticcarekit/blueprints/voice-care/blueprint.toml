@@ -1,0 +1,13 @@
+[blueprint]
+name = "voice-care"
+description = "Voice intake and clinical scribe: turn a spoken (or typed) patient encounter into a structured, human-reviewed intake note."
+track = "Voice for Care"
+
+[requires]
+modalities_in = ["text", "audio"]
+tool_calling = true
+context_tokens = 32768
+
+[defaults]
+capabilities = ["voice", "extract"]
+pack = "healthcare"

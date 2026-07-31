@@ -1,0 +1,13 @@
+[blueprint]
+name = "on-device"
+description = "Fully offline patient-intake summarizer. Nothing leaves the machine; the demo proves it by rendering the trace's 0-bytes-egressed panel."
+track = "On-Device"
+
+[requires]
+modalities_in = ["text"]
+tool_calling = false
+context_tokens = 8192
+
+[defaults]
+capabilities = ["extract"]
+pack = "healthcare"
