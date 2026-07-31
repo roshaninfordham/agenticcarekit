@@ -1,0 +1,31 @@
+# Pack manifest — see packs/_template/README.md for the full field
+# reference. Kept intentionally minimal: a pack is a name, a description,
+# a version, and a declaration of what it provides. Discovery happens via
+# the "agenticcarekit.packs" entry-point group in pyproject.toml; this
+# file is metadata read *after* the pack module is already importable,
+# not a substitute for the entry point.
+
+[pack]
+name = "healthcare"
+description = "FHIR-lite clinical models, an 18-category HIPAA-identifier PHI redactor, a deterministic synthetic data generator, and clinical eval sets."
+version = "0.1.0"
+
+[provides]
+# Redactor names, matching Redactor.name — resolvable via the pack's
+# exported PHIRedactor (agenticcarekit.packs.healthcare.PHIRedactor).
+redactors = ["healthcare.phi"]
+
+# Pydantic model classes this pack exports (agenticcarekit.packs.healthcare.<name>).
+models = [
+    "Patient",
+    "Encounter",
+    "Observation",
+    "DocumentReference",
+    "MedicationStatement",
+]
+
+# JSONL golden eval sets, paths relative to this manifest's directory.
+eval_sets = [
+    "evalsets/phi_labelled.jsonl",
+    "evalsets/intake_extraction.jsonl",
+]

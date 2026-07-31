@@ -1,0 +1,33 @@
+{"id": "phi-001", "input": "Please have Dr. Michael Chen call the patient back this afternoon.", "expected": {"entities": [{"category": "NAME", "text": "Michael Chen"}]}, "tags": ["name", "honorific"]}
+{"id": "phi-002", "input": "James Johnson missed his last two appointments.", "expected": {"entities": [{"category": "NAME", "text": "James Johnson"}]}, "tags": ["name", "wordlist"]}
+{"id": "phi-003", "input": "Hi, my name is Priya Osei and I'm calling about my prescription.", "expected": {"entities": [{"category": "NAME", "text": "Priya Osei"}]}, "tags": ["name", "spoken-context"]}
+{"id": "phi-004", "input": "Dr. Alzheimer's disease research has advanced significantly since 2010.", "expected": {"entities": []}, "tags": ["negative", "eponym", "year-alone"]}
+{"id": "phi-005", "input": "She recently moved to California for work.", "expected": {"entities": []}, "tags": ["negative", "state-name"]}
+{"id": "phi-006", "input": "The clinic has been open since 2015.", "expected": {"entities": []}, "tags": ["negative", "year-alone"]}
+{"id": "phi-007", "input": "Please mail the forms to 482 Oak Ave, Rivertown, CA 90210.", "expected": {"entities": [{"category": "ADDRESS", "text": "482 Oak Ave"}, {"category": "ADDRESS", "text": "Rivertown, CA 90210"}]}, "tags": ["address"]}
+{"id": "phi-008", "input": "Her last visit was on 03/15/2024 for a routine checkup.", "expected": {"entities": [{"category": "DATE", "text": "03/15/2024"}]}, "tags": ["date", "numeric"]}
+{"id": "phi-009", "input": "He was born on March 3, 1981 in a small town.", "expected": {"entities": [{"category": "DATE", "text": "March 3, 1981"}]}, "tags": ["date", "dob", "month-name"]}
+{"id": "phi-010", "input": "Admitted on 5 June 2023 following the incident.", "expected": {"entities": [{"category": "DATE", "text": "5 June 2023"}]}, "tags": ["date", "admission", "day-month-year"]}
+{"id": "phi-011", "input": "The patient is 92 years old and lives independently.", "expected": {"entities": [{"category": "AGE", "text": "92"}]}, "tags": ["age", "over-89"]}
+{"id": "phi-012", "input": "The patient is 45 years old.", "expected": {"entities": []}, "tags": ["negative", "age-under-90"]}
+{"id": "phi-013", "input": "You can reach the clinic at 415-555-2671 during business hours.", "expected": {"entities": [{"category": "PHONE", "text": "415-555-2671"}]}, "tags": ["phone"]}
+{"id": "phi-014", "input": "Send records via fax to 415-555-9098 today.", "expected": {"entities": [{"category": "FAX", "text": "415-555-9098"}]}, "tags": ["fax"]}
+{"id": "phi-015", "input": "Contact her at jane.doe@example.com for scheduling.", "expected": {"entities": [{"category": "EMAIL", "text": "jane.doe@example.com"}]}, "tags": ["email"]}
+{"id": "phi-016", "input": "His social security number is 123-45-6789 on the intake form.", "expected": {"entities": [{"category": "SSN", "text": "123-45-6789"}]}, "tags": ["ssn"]}
+{"id": "phi-017", "input": "The chart is filed under MRN 837291 in the system.", "expected": {"entities": [{"category": "MRN", "text": "837291"}]}, "tags": ["mrn"]}
+{"id": "phi-018", "input": "Her health plan number is HP2938471 for billing purposes.", "expected": {"entities": [{"category": "HEALTH_PLAN", "text": "HP2938471"}]}, "tags": ["health_plan"]}
+{"id": "phi-019", "input": "The account number 445982 was used for the last payment.", "expected": {"entities": [{"category": "ACCOUNT", "text": "445982"}]}, "tags": ["account"]}
+{"id": "phi-020", "input": "His certificate number CERT9021 was verified by the board.", "expected": {"entities": [{"category": "CERTIFICATE", "text": "CERT9021"}]}, "tags": ["certificate"]}
+{"id": "phi-021", "input": "The VIN 1HGCM82633A004352 was recorded for the transport van.", "expected": {"entities": [{"category": "VEHICLE", "text": "1HGCM82633A004352"}]}, "tags": ["vehicle", "vin"]}
+{"id": "phi-022", "input": "The license plate ABC1234 was noted by security.", "expected": {"entities": [{"category": "VEHICLE", "text": "ABC1234"}]}, "tags": ["vehicle", "plate"]}
+{"id": "phi-023", "input": "The infusion pump serial number is SN-88213 per biomedical records.", "expected": {"entities": [{"category": "DEVICE", "text": "SN-88213"}]}, "tags": ["device"]}
+{"id": "phi-024", "input": "Visit http://patientportal.example.com/records for details.", "expected": {"entities": [{"category": "URL", "text": "http://patientportal.example.com/records"}]}, "tags": ["url"]}
+{"id": "phi-025", "input": "The device logged in from 10.0.2.15 during the visit.", "expected": {"entities": [{"category": "IP", "text": "10.0.2.15"}]}, "tags": ["ip", "negative-device-word"]}
+{"id": "phi-026", "input": "Fingerprint ID FP-4471 was recorded during intake.", "expected": {"entities": [{"category": "BIOMETRIC", "text": "FP-4471"}]}, "tags": ["biometric"]}
+{"id": "phi-027", "input": "A full-face photo was attached to the chart for identification.", "expected": {"entities": [{"category": "PHOTO", "text": "full-face photo"}]}, "tags": ["photo"]}
+{"id": "phi-028", "input": "Please use tracking number TRK-55321 for the referral packet.", "expected": {"entities": [{"category": "OTHER_ID", "text": "TRK-55321"}]}, "tags": ["other_id"]}
+{"id": "phi-029", "input": "The patient's condition is being managed by Dr. Patel using standard Parkinson's disease protocols.", "expected": {"entities": [{"category": "NAME", "text": "Patel"}]}, "tags": ["name", "eponym-adjacent"]}
+{"id": "phi-030", "input": "Please have Dr. Sarah Thompson call Robert Kim at 312-555-0199 regarding his MRN 552901 results before his appointment on 04/22/2025.", "expected": {"entities": [{"category": "NAME", "text": "Sarah Thompson"}, {"category": "NAME", "text": "Robert Kim"}, {"category": "PHONE", "text": "312-555-0199"}, {"category": "MRN", "text": "552901"}, {"category": "DATE", "text": "04/22/2025"}]}, "tags": ["mixed", "multi-entity"]}
+{"id": "phi-031", "input": "The waiting room played James Brown on the radio while patients waited.", "expected": {"entities": []}, "tags": ["negative", "known-limitation", "wordlist-false-positive"]}
+{"id": "phi-032", "input": "Please connect me with Xiomara Delacroix-Vantongeren for her appointment.", "expected": {"entities": [{"category": "NAME", "text": "Xiomara Delacroix-Vantongeren"}]}, "tags": ["name", "known-limitation", "name-outside-wordlist"]}
+{"id": "phi-033", "input": "The appointment is set for 05-01-2024 at the downtown office.", "expected": {"entities": [{"category": "DATE", "text": "05-01-2024"}]}, "tags": ["date", "known-limitation", "unsupported-date-format"]}

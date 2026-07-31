@@ -1,0 +1,13 @@
+# Minimal pack manifest. Copy this file, rename the [pack] name, and
+# fill in [provides] with whatever your pack actually exports. See
+# README.md in this directory for the full walkthrough.
+
+[pack]
+name = "_template"
+description = "Near-empty template pack proving the pack seam. Copy this directory to start a new domain pack."
+version = "0.1.0"
+
+[provides]
+redactors = ["_template.none"]
+models = ["Example"]
+eval_sets = []
