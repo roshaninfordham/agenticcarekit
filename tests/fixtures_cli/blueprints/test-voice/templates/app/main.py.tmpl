@@ -1,0 +1,15 @@
+"""{{project_name}} — {{blueprint}} on {{model_primary}}."""
+
+from __future__ import annotations
+
+PROJECT = "{{project_name}}"
+CAPABILITIES = {{capabilities_list}}
+EGRESS = "{{egress}}"
+
+
+def main() -> None:
+    print(f"{PROJECT}: {len(CAPABILITIES)} capabilities, egress {EGRESS}")
+
+
+if __name__ == "__main__":
+    main()

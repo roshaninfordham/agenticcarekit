@@ -1,0 +1,13 @@
+[blueprint]
+name = "test-voice"
+description = "Fixture blueprint: audio intake. Decision support only."
+track = "voice"
+
+[requires]
+modalities_in = ["text", "audio"]
+tool_calling = true
+context_tokens = 32768
+
+[defaults]
+capabilities = ["voice", "extract"]
+pack = "healthcare"

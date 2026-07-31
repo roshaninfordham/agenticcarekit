@@ -1,0 +1,13 @@
+[blueprint]
+name = "test-notes"
+description = "Fixture blueprint: long-document notes. Decision support only."
+track = "notes"
+
+[requires]
+modalities_in = ["text", "image"]
+tool_calling = true
+context_tokens = 200000
+
+[defaults]
+capabilities = ["extract"]
+pack = "healthcare"

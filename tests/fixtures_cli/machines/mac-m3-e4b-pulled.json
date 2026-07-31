@@ -1,0 +1,40 @@
+{
+  "ack_toml_path": null,
+  "ack_toml_present": false,
+  "arch": "arm64",
+  "cpu_cores": 12,
+  "cpu_model": "Apple M3 Pro",
+  "disk_free_gb": 400.0,
+  "docker_installed": false,
+  "facts_version": 1,
+  "gpu_name": "Apple Silicon GPU (unified memory)",
+  "gpu_vendor": "apple",
+  "installed_tags": [
+    "gemma4:e4b-mlx",
+    "nomic-embed-text:latest"
+  ],
+  "model_dir": "/Users/dev/.ollama/models",
+  "network_mbps": 95.0,
+  "network_source": "https://speed.cloudflare.com/__down?bytes=16000000",
+  "node_version": null,
+  "ollama_daemon": true,
+  "ollama_installed": true,
+  "ollama_version": "0.12.4",
+  "os": "Darwin",
+  "os_release": "24.5.0",
+  "probes": [],
+  "provider_keys": {
+    "ANTHROPIC_API_KEY": false,
+    "CEREBRAS_API_KEY": false,
+    "GOOGLE_API_KEY": false,
+    "GROQ_API_KEY": false,
+    "HF_TOKEN": false,
+    "OPENAI_API_KEY": false,
+    "OPENROUTER_API_KEY": false,
+    "TOGETHER_API_KEY": false
+  },
+  "python_version": "3.12.3",
+  "ram_available_gb": 19.8,
+  "ram_total_gb": 36.0,
+  "vram_gb": null
+}

@@ -1,0 +1,13 @@
+[blueprint]
+name = "test-broken"
+description = "Fixture blueprint with a bad template variable (E501)."
+track = "broken"
+
+[requires]
+modalities_in = ["text"]
+tool_calling = true
+context_tokens = 8192
+
+[defaults]
+capabilities = []
+pack = "healthcare"
