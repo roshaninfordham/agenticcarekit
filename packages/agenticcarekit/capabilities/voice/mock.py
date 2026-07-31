@@ -21,18 +21,39 @@ class MockASR:
     One entry in `script` per call to `run_turn`/`transcribe_stream`; once
     the script is exhausted, further calls yield nothing (an empty turn).
 
+    With no ``script``, a single canned synthetic intake turn is replayed —
+    so ``MockASR()`` works out of the box in generated demos.
+
     Example:
         >>> asr = MockASR([[Transcript("hi", False, 0, 100), Transcript("hi there", True, 0, 300)]])
         >>> [t.text for t in asr.transcribe_stream(iter([b"\\x00\\x01"]))]
         ['hi', 'hi there']
         >>> list(asr.transcribe_stream(iter([b""])))
         []
+        >>> [t.is_final for t in MockASR().transcribe_stream(iter([b""]))]
+        [False, False, True]
     """
 
     name = "mock-asr"
 
-    def __init__(self, script: Sequence[Sequence[Transcript]]) -> None:
-        self._script = [list(turn) for turn in script]
+    #: Default one-turn script: a synthetic patient intake utterance.
+    #: Synthetic data only — no real patient information.
+    DEFAULT_SCRIPT: Sequence[Sequence[Transcript]] = (
+        (
+            Transcript("Hi, this is", False, 0, 600),
+            Transcript("Hi, this is Alex Rivera calling to", False, 0, 1400),
+            Transcript(
+                "Hi, this is Alex Rivera calling to schedule a follow-up "
+                "about my blood pressure medication refill.",
+                True,
+                0,
+                3200,
+            ),
+        ),
+    )
+
+    def __init__(self, script: Sequence[Sequence[Transcript]] | None = None) -> None:
+        self._script = [list(turn) for turn in (self.DEFAULT_SCRIPT if script is None else script)]
         self._next_turn = 0
 
     def transcribe_stream(self, audio_chunks: Iterator[bytes]) -> Iterator[Transcript]:

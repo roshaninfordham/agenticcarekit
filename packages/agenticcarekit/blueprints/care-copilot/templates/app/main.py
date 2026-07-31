@@ -37,30 +37,45 @@ def _load_prompt(name: str) -> str:
     return (PROMPTS_DIR / name).read_text(encoding="utf-8")
 
 
-def _build_offline_stack() -> tuple[AgentLoop, MockProvider]:
+def _build_offline_stack(tracer: Tracer) -> tuple[AgentLoop, MockProvider]:
     """The offline seam: a mock model, real tools (each with its own mock).
 
     To go live, replace ``MockProvider`` with ``OllamaProvider`` /
     ``CerebrasProvider`` behind a ``FallbackChain``
-    (``agenticcarekit.kernel.providers``). The tools stay exactly as they
-    are — each already carries the real-vs-mock seam internally.
+    (``agenticcarekit.kernel.providers``) and drop ``offline=True``. The
+    tools stay exactly as they are — @tool already carries the mock seam.
     """
     provider = MockProvider()
-    loop = AgentLoop(provider=provider, tools=ALL_TOOLS, system_prompt=_load_prompt("system.md"))
+    loop = AgentLoop(
+        provider,
+        ALL_TOOLS,
+        offline=True,
+        emit=lambda ev: tracer.emit(ev.kind, ev.egress, ev.bytes_out, ev.payload),
+    )
     return loop, provider
+
+
+def _task_messages(task: str) -> list:
+    """System prompt + the task, as contract Messages."""
+    from agenticcarekit.kernel.contracts import Message
+
+    return [
+        Message.text("system", _load_prompt("system.md")),
+        Message.text("user", task),
+    ]
 
 
 def run_demo() -> None:
     """Run the copilot against one synthetic administrative task."""
     tracer = Tracer(sinks=[JsonlSink(".trace/care-copilot.jsonl"), ConsoleSink()])
-    loop, _ = _build_offline_stack()
+    loop, _ = _build_offline_stack(tracer)
 
     task = SAMPLE_TASKS[0]
     console.print(f"[bold]care-copilot demo[/bold] — task: {task}\n")
 
-    result = loop.run(task, tracer=tracer, offline=True)
+    result = loop.run(_task_messages(task))
     console.print("\n[bold]Result[/bold] (for staff review before anything is submitted or booked):")
-    console.print(result)
+    console.print(result.final_text)
 
     egressed = bytes_egressed(tracer.events)
     if egressed == 0:
@@ -72,11 +87,11 @@ def run_demo() -> None:
 def run_eval() -> None:
     """Run the copilot against every bundled synthetic task."""
     tracer = Tracer(sinks=[ConsoleSink()])
-    loop, _ = _build_offline_stack()
+    loop, _ = _build_offline_stack(tracer)
     for i, task in enumerate(SAMPLE_TASKS, start=1):
         console.print(f"[bold]task {i}[/bold]: {task}")
-        result = loop.run(task, tracer=tracer, offline=True)
-        console.print(result)
+        result = loop.run(_task_messages(task))
+        console.print(result.final_text)
 
 
 def cli() -> None:

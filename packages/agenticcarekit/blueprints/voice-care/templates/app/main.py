@@ -13,25 +13,66 @@ it; nothing else in this file needs to change.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
-from agenticcarekit.capabilities.voice import MockASR, MockTTS, VoiceLoop
+from agenticcarekit.capabilities.voice import MockASR, MockTTS, Transcript, VoiceLoop
+from agenticcarekit.kernel.contracts import GenerateResponse
 from agenticcarekit.kernel.providers import MockProvider
 from agenticcarekit.kernel.trace import ConsoleSink, JsonlSink, Tracer, bytes_egressed
 from rich.console import Console
 
-from app.fixtures.sample_transcripts import SAMPLE_TRANSCRIPTS
+from app.fixtures.sample_transcripts import SAMPLE_TRANSCRIPTS, SyntheticTranscript
 from app.scribe import transcribe_to_note
 
 console = Console()
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 
-def _load_prompt(name: str) -> str:
-    return (PROMPTS_DIR / name).read_text(encoding="utf-8")
+#: What the mock scribe model "extracts" from the sample call. A real
+#: model produces this JSON itself; the mock replays it so the demo shows
+#: the full extract -> validate -> IntakeNote path with zero network.
+#: Synthetic data only — no real patient information.
+_CANNED_NOTE = {
+    "chief_complaint": "Sore throat and a mild fever since Tuesday.",
+    "history_of_present_illness": (
+        "Symptoms began Tuesday: sore throat with a low-grade fever "
+        "(reported ~100.5) that has been similar each evening, plus a "
+        "little cough. Swallowing is uncomfortable but manageable."
+    ),
+    "reported_symptoms": ["sore throat", "low-grade fever", "cough"],
+    "triage_route": "routine-visit",
+    "follow_up_needed": True,
+    "notes_for_clinician": (
+        "Temperature figure is patient-reported, not measured in clinic. "
+        "Confirm timing of onset before scheduling."
+    ),
+}
 
 
-def _build_offline_stack() -> tuple[VoiceLoop, MockProvider]:
+def _scribe_provider() -> MockProvider:
+    """A mock model scripted to return the canned intake-note JSON."""
+    return MockProvider([GenerateResponse(text=json.dumps(_CANNED_NOTE))])
+
+
+def _asr_script(transcript: SyntheticTranscript) -> list[list[Transcript]]:
+    """Turn a synthetic transcript's patient lines into a MockASR script,
+    one scripted ASR turn (with a partial, then the final) per utterance."""
+    script: list[list[Transcript]] = []
+    for speaker, text in transcript:
+        if speaker != "patient":
+            continue
+        cut = max(1, len(text) // 3)
+        script.append(
+            [
+                Transcript(text[:cut], False, 0, 800),
+                Transcript(text, True, 0, 2400),
+            ]
+        )
+    return script
+
+
+def _build_offline_stack(transcript: SyntheticTranscript) -> tuple[VoiceLoop, MockProvider]:
     """The offline seam: mocks in, real providers out.
 
     To go live, replace ``MockASR``/``MockTTS`` with a real microphone or
@@ -41,23 +82,32 @@ def _build_offline_stack() -> tuple[VoiceLoop, MockProvider]:
     this function, and everything downstream of it, is unchanged.
     """
     provider = MockProvider()
-    asr = MockASR()
+    asr = MockASR(_asr_script(transcript))
     tts = MockTTS()
-    loop = VoiceLoop(asr=asr, tts=tts, provider=provider)
+    loop = VoiceLoop(
+        asr=asr,
+        llm=provider,
+        tts=tts,
+        system_prompt_path=PROMPTS_DIR / "system.md",
+    )
     return loop, provider
 
 
 def run_demo() -> None:
     """Run one synthetic intake call end to end, fully offline."""
     tracer = Tracer(sinks=[JsonlSink(".trace/voice-care.jsonl"), ConsoleSink()])
-    loop, provider = _build_offline_stack()
-    system_prompt = _load_prompt("system.md")
 
     sample_id, transcript = next(iter(SAMPLE_TRANSCRIPTS.items()))
     console.print(f"[bold]voice-care demo[/bold] — replaying synthetic sample {sample_id!r}\n")
 
-    turn_transcript = loop.run(system_prompt=system_prompt, seed_transcript=transcript)
-    note = transcribe_to_note(turn_transcript, provider=provider, tracer=tracer)
+    loop, provider = _build_offline_stack(transcript)
+    patient_turns = sum(1 for speaker, _ in transcript if speaker == "patient")
+    for _ in range(patient_turns):
+        result = loop.run_turn(iter([b"\x00"]))
+        console.print(f"  [dim]caller:[/dim] {result.transcript}")
+        console.print(f"  [dim]assistant:[/dim] {result.reply_text}")
+
+    note = transcribe_to_note(transcript, provider=_scribe_provider(), tracer=tracer)
 
     console.print("\n[bold]Structured intake note[/bold] (for clinician review):")
     console.print(note.model_dump())
@@ -72,7 +122,7 @@ def run_demo() -> None:
 def run_eval() -> None:
     """Score the scribe against every bundled synthetic fixture."""
     tracer = Tracer(sinks=[ConsoleSink()])
-    _, provider = _build_offline_stack()
+    provider = _scribe_provider()
     for name, transcript in SAMPLE_TRANSCRIPTS.items():
         note = transcribe_to_note(transcript, provider=provider, tracer=tracer)
         console.print(f"[bold]{name}[/bold]  triage_route={note.triage_route!r}")

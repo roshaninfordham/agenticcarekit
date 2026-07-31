@@ -19,6 +19,7 @@ Example:
 from .builder import build_ollama_chat
 from .cerebras import CerebrasProvider
 from .chain import FallbackChain
+from .factory import provider_for
 from .mock import MockProvider
 from .models import GEMMA4_MODELS, MODEL_SIZES_GB, audio_capable_tags
 from .ollama import OllamaProvider
@@ -34,4 +35,5 @@ __all__ = [
     "OpenAICompatibleProvider",
     "audio_capable_tags",
     "build_ollama_chat",
+    "provider_for",
 ]

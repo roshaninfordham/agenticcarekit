@@ -212,7 +212,13 @@ def _model_callable(cfg: AckConfig, *, offline: bool):
             details={"model": str(cfg.model_primary), "offline": offline, "pending": "W-A"},
         )
 
-    provider = factory(str(cfg.model_primary))  # pragma: no cover - integration path
+    kwargs: dict[str, Any] = {"offline": offline}
+    if cfg.model_fallback is not None:
+        kwargs["fallback"] = str(cfg.model_fallback)
+    try:
+        provider = factory(str(cfg.model_primary), **kwargs)
+    except TypeError:  # a third-party factory without the keyword surface
+        provider = factory(str(cfg.model_primary))
 
     def call(text: str) -> str:  # pragma: no cover - integration path
         from agenticcarekit.kernel.contracts import GenerateRequest, Message

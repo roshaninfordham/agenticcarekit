@@ -47,6 +47,20 @@
       "fix": "free up space, or pick a smaller model: ack init --model gemma4:e2b"
     },
     {
+      "code": "E021",
+      "title": "Not enough RAM for the selected model",
+      "what": "available RAM is below the model's working-set requirement (size / 0.6 rule).",
+      "why": "a model that swaps is slower than a smaller model that fits.",
+      "fix": "pick a smaller model: ack init --model gemma4:e2b   # or use a hosted primary"
+    },
+    {
+      "code": "E022",
+      "title": "Model variant does not fit this platform",
+      "what": "the selected variant targets different hardware (e.g. an -mlx tag off Apple Silicon).",
+      "why": "-mlx builds run only on Apple Silicon; CUDA-sized picks assume an NVIDIA GPU.",
+      "fix": "let detection choose: ack init   # or pick the base tag, e.g. gemma4:e4b"
+    },
+    {
       "code": "E101",
       "title": "Model pull failed",
       "what": "the model download did not complete.",
@@ -206,6 +220,13 @@
       "what": "the judge model call failed while scoring.",
       "why": "judge runs use the same provider chain and can hit the same network errors.",
       "fix": "re-run; or score offline against exact-match only: ack eval --offline"
+    },
+    {
+      "code": "E603",
+      "title": "Generated demo failed",
+      "what": "the project's demo exited non-zero.",
+      "why": "usually a missing model, a broken edit in app/, or a capability mismatch surfaced at run time.",
+      "fix": "ack demo --offline   # runs against mocks; then ack doctor for environment causes"
     }
   ]
 }

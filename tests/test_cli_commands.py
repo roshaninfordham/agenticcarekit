@@ -512,7 +512,27 @@ def test_eval_without_a_golden_set_is_e601_with_a_scaffold_fix(project: Path) ->
     assert "ack eval --init" in error["fix"]
 
 
-def test_eval_with_a_golden_set_but_no_provider_chain_names_the_gap(project: Path) -> None:
+def test_eval_offline_scores_the_golden_set_against_the_mock_provider(project: Path) -> None:
+    evals = project / "evals"
+    evals.mkdir()
+    (evals / "golden.jsonl").write_text(
+        '{"id": "c1", "input": "hi", "expected": "hi", "tags": []}\n', encoding="utf-8"
+    )
+    result = runner.invoke(
+        app, ["eval", "--path", str(project), "--offline", "--json"], env=env_for()
+    )
+    payload = json.loads(result.stdout)
+    assert payload["ok"], payload
+    assert payload["data"]["cases"] == 1
+    assert payload["data"]["offline"] is True
+
+
+def test_eval_online_without_a_daemon_fails_with_a_registered_environment_code(
+    project: Path,
+) -> None:
+    # With provider_for landed, the non-offline path reaches a real provider;
+    # in a daemon-less test environment the honest outcome is an environment
+    # error (E011/E102/E110) carrying its fix — never a fabricated score.
     evals = project / "evals"
     evals.mkdir()
     (evals / "golden.jsonl").write_text(
@@ -521,12 +541,11 @@ def test_eval_with_a_golden_set_but_no_provider_chain_names_the_gap(project: Pat
     result = runner.invoke(app, ["eval", "--path", str(project), "--json"], env=env_for())
     payload = json.loads(result.stdout)
     if payload["ok"]:
-        assert payload["data"]["cases"] == 1  # W-A has landed; the real path ran
+        assert payload["data"]["cases"] == 1  # a live daemon answered; fine too
     else:
         error = payload["error"]
-        assert error["code"] == "E601"
-        assert error["details"]["pending"] == "W-A"
-        assert "provider" in error["message"]
+        assert error["code"] in {"E011", "E102", "E110"}
+        assert error["fix"]
 
 
 def test_demo_runs_the_generated_makefile_target_offline(project: Path) -> None:

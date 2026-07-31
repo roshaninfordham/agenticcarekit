@@ -27,4 +27,15 @@ contains something that sounds like one (e.g. the patient reporting a
 prior diagnosis), quote it as reported speech — do not restate it as a
 fact you are asserting.
 
-Return only the structured fields the `IntakeNote` schema asks for.
+Return only the structured fields the `IntakeNote` schema asks for, as a
+single JSON object matching this schema exactly:
+
+```json
+{schema_json}
+```
+
+Transcript:
+
+```
+{text}
+```

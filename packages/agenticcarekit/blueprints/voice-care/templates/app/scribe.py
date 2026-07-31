@@ -70,11 +70,10 @@ def transcribe_to_note(
     sensitive_transcript = Sensitive(raw_text, label="intake_transcript")
     clean_text = sensitive_transcript.unwrap_for(provider, policy)
 
-    instructions = _SCRIBE_PROMPT_PATH.read_text(encoding="utf-8")
     return extract(
-        text=clean_text,
-        schema=IntakeNote,
-        instructions=instructions,
-        provider=provider,
-        tracer=tracer,
+        provider,
+        IntakeNote,
+        clean_text,
+        prompt_path=_SCRIBE_PROMPT_PATH,
+        emit=lambda ev: tracer.emit(ev.kind, ev.egress, ev.bytes_out, ev.payload),
     )
