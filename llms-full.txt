@@ -1,0 +1,801 @@
+# agenticcarekit — full reference for language models
+
+> agenticcarekit — the open-model stack for health AI. Runs on your laptop. Ships with the privacy boundary built in.
+
+Single-file expansion of [llms.txt](llms.txt). Everything here is checkable against the
+repository; nothing is aspirational unless it is explicitly labelled **roadmap**.
+
+- **Version:** 0.1.0 · Apache-2.0 · Python >= 3.11
+- **Command:** `ack` (alias: `agenticcarekit`)
+- **Repository:** https://github.com/roshaninfordham/agenticcarekit
+- **Telemetry:** none, ever. No analytics, no update check, no crash reporting.
+- **Scope:** decision support only — documentation, navigation, accessibility, triage
+  routing, education. Not diagnosis. Not treatment. Synthetic or public data only.
+- **Not affiliated with, endorsed by, or derived from Apple Inc.**
+
+## Contents
+
+1. [What it is](#1-what-it-is)
+2. [Install and quickstart](#2-install-and-quickstart)
+3. [Support matrix](#3-support-matrix)
+4. [Repository layout](#4-repository-layout)
+5. [The five frozen contracts (verbatim)](#5-the-five-frozen-contracts-verbatim)
+6. [CLI command reference](#6-cli-command-reference)
+7. [Error registry](#7-error-registry)
+8. [The privacy boundary](#8-the-privacy-boundary)
+9. [Gemma 4 ground truth](#9-gemma-4-ground-truth)
+10. [Extension points](#10-extension-points)
+11. [Verification commands](#11-verification-commands)
+12. [Known issues and roadmap](#12-known-issues-and-roadmap)
+
+---
+
+## 1. What it is
+
+Three things:
+
+- **A scaffolder.** `ack init` runs thirteen concurrent machine probes, ranks
+  open-weight models against a blueprint's declared requirements through a table of
+  seven hard filters and nine soft scores, prints the reason for every choice, and
+  generates a repository the user owns outright. Identical inputs produce a
+  byte-identical tree.
+- **A thin runtime.** Providers, the privacy boundary, trace, and four capabilities
+  (voice, agents, extract, rag).
+- **A local sidecar.** `ack serve` — the kernel over local HTTP (twelve `/v1` routes,
+  OpenAPI, loopback-bound, `0600` token file) and `ack serve --mcp` over stdio with
+  seven MCP tools. Policy, redaction and the trace live in that one process, so a thin
+  client in any language cannot route around them.
+
+**Not a framework.** Nothing inverts control. Nothing hides the provider — every
+concrete provider exposes its raw client as `.client`. Every abstraction is ejectable:
+drop the blueprint and keep the packs, drop the packs and keep the capabilities, drop
+the capabilities and call the kernel directly, drop the kernel and use the raw
+`httpx.Client`.
+
+### The eleven invariants
+
+1. **Sensitivity is a type, not a convention.** `Sensitive[T]` cannot reach a
+   `public-cloud` provider without a declared redactor. Enforced at runtime.
+2. **Providers declare capabilities; the runtime negotiates.** Never silently degrade.
+3. **Everything is ejectable.**
+4. **Determinism.** Identical inputs produce a byte-identical tree.
+5. **Offline must work.** Every tool ships a mock; `ack demo --offline` runs with
+   networking disabled.
+6. **No telemetry, ever.** Stated in the CLI header and the README.
+7. **Never fake progress.** No artificial delays.
+8. **Domain is a pack, not the architecture.** `packs/_template/` ships from day one.
+9. **Append-only terminal output.** No full-screen TUI.
+10. **Non-TTY is first class.** Every command supports `--json`.
+11. **One canonical implementation per tier; the spec is the source of truth.** Ports
+    pass the published conformance suite or they do not ship.
+
+---
+
+## 2. Install and quickstart
+
+```bash
+# no install
+uvx --from git+https://github.com/roshaninfordham/agenticcarekit ack --version
+
+# ack on PATH
+uv tool install git+https://github.com/roshaninfordham/agenticcarekit
+
+# development checkout
+git clone https://github.com/roshaninfordham/agenticcarekit && cd agenticcarekit
+uv sync
+uv run ack doctor
+```
+
+The verified 60-second path:
+
+```bash
+uvx --from git+https://github.com/roshaninfordham/agenticcarekit \
+  ack init care --blueprint on-device --yes --offline
+cd care
+uvx --from git+https://github.com/roshaninfordham/agenticcarekit ack demo --offline
+# -> "✓ 0 bytes egressed — all inference stayed on this device."
+```
+
+Homebrew, Scoop, Docker, `curl | sh`, Nix, devcontainer feature, GitHub Action and
+`npx create-agenticcarekit` are **roadmap**. They do not exist.
+
+---
+
+## 3. Support matrix
+
+| Path | Status | What that actually means |
+|---|---|---|
+| Gemma 4 via Ollama (`e2b`, `e4b`, `12b`, `26b`, `31b`, `-mlx`) | **Supported** | Message builder conformance-verified: 20 `message-build` cases green on both Python and TypeScript. Transport tested against recorded Ollama `/api/chat` request and response shapes via `httpx.MockTransport` and stubs. **No live-network CI** — no assertion anywhere runs against a live Ollama daemon. |
+| Cerebras | **Declared, untested** | `CerebrasProvider` is a preset over the OpenAI-compatible transport; declares `public-cloud` egress; reads `CEREBRAS_API_KEY` at call time. No recorded transcript, no live call. |
+| OpenAI-compatible endpoints | **Declared, untested** | `OpenAICompatibleProvider` maps the same builder decisions onto `/chat/completions`. `top_k` cannot be expressed in that schema and is omitted rather than faked. |
+| Python (kernel, capabilities, packs, CLI, sidecar, evals) | **Canonical** | 69/69 conformance; full suite green apart from one known failing test. |
+| TypeScript (`packages/ts`) | **Kernel conformance-verified** | 69/69 on the same shared corpus. `extract` and `agents` ported but unit-tested only. `voice`, `rag`, and provider HTTP clients **not ported**. |
+| `ack serve` sidecar + MCP | **Shipped** | Twelve HTTP routes under `/v1`, OpenAPI at `/openapi.json`, loopback bind with a `0600` token file, seven MCP tools over stdio. Smoke-verified; the newest surface in the project. |
+| Go / Rust / Swift / Java / C# thin clients | **Roadmap** | The sidecar makes them possible; none generated yet. |
+| Homebrew / Scoop / Docker / npx / Nix / GitHub Action | **Roadmap** | Not implemented. |
+
+Blueprint demo status: `on-device` runs end to end offline; `voice-care` and
+`care-copilot` scaffold correctly but their demos raise `TypeError` from
+template/signature drift.
+
+---
+
+## 4. Repository layout
+
+```
+agenticcarekit/
+├─ spec/                              Tier 0 — source of truth
+│  ├─ schemas/*.json                  the five contracts as JSON Schema, plus errors
+│  ├─ errors.json                     34 codes, shared by every language
+│  └─ conformance/                    69 cases, a stdlib-only runner, two adapters
+├─ packages/
+│  ├─ agenticcarekit/                 the single top-level Python module
+│  │  ├─ kernel/contracts/            the only import surface other tiers build against
+│  │  ├─ kernel/providers/            ollama, cerebras, openai-compatible, mock, chain, builder, factory
+│  │  ├─ kernel/policy/               Policy — the one enforcement path (+ THREATMODEL.md)
+│  │  ├─ kernel/trace/                tracer, JSONL + console sinks, analysis
+│  │  ├─ capabilities/                voice, agents, extract, rag
+│  │  ├─ packs/                       healthcare, _template
+│  │  ├─ blueprints/                  voice-care, care-copilot, on-device
+│  │  ├─ cli/                         13 commands, detect/, recommend/
+│  │  ├─ evals/                       harness, judge rubric (.md), scored table
+│  │  └─ serve/                       ack serve — HTTP + MCP sidecar
+│  └─ ts/                             TypeScript port — kernel + extract/agents
+├─ tests/                             flat, named per workstream: test_<area>_<topic>.py
+├─ docs/                              CONTRACTS.md, architecture, privacy, comparison, errors, recipes/
+├─ registry.toml  llms.txt  llms-full.txt  AGENTS.md  CLAUDE.md -> AGENTS.md
+└─ README.md  CHANGELOG.md  CONTRIBUTING.md  LICENSE
+```
+
+---
+
+## 5. The five frozen contracts (verbatim)
+
+The content below is `docs/CONTRACTS.md` reproduced in full. It is normative. If a
+contract does not fit, the fix is to amend code + JSON Schema + that document in one
+commit — never to patch around it downstream.
+
+## The five frozen contracts
+
+Phase 0 output. Everything in agenticcarekit is built against — and only
+against — what is exported from `agenticcarekit.kernel.contracts`. Matching
+JSON Schemas live in `spec/schemas/`; the shared error registry in
+`spec/errors.json`.
+
+**Rule for every workstream:** if a contract doesn't fit, the fix is to
+amend the contract *here* (code + schema + this doc, one commit), never to
+patch around it downstream. Contract drift discovered in integration is
+resolved the same way.
+
+Import surface:
+
+```python
+from agenticcarekit.kernel.contracts import (
+    # Contract 1
+    Modality, EgressClass, Capabilities, Provider,
+    Message, TextPart, ImagePart, AudioPart, ToolCall,
+    GenerateRequest, GenerateResponse, Chunk, Usage, VISION_TOKEN_BUDGETS,
+    # Contract 2
+    Sensitive, PolicyContext, Redactor, Redaction,
+    # Contract 3
+    tool, Tool, ToolSpec, Permission,
+    # Contract 4
+    TraceEvent, EventKind,
+    # Contract 5
+    AckConfig, ModelRef,
+    # Errors
+    AckError, CapabilityMismatch, PolicyViolation, explain, error_registry,
+)
+```
+
+---
+
+### Contract 1 — `Capabilities` and `Provider`
+
+*File: `kernel/contracts/provider.py` · Schemas: `capabilities.schema.json`, `provider-spec.schema.json`*
+
+Providers **declare** capabilities; the runtime negotiates. Never infer,
+never silently degrade (invariant 2).
+
+- `EgressClass`: `device` | `trusted-network` | `public-cloud`. The privacy
+  boundary (Contract 2) is defined over these three classes and nothing else.
+- `Capabilities.missing(**requirements)` returns human-readable gap strings
+  (`["audio input", "tool calling"]`). These strings feed
+  `CapabilityMismatch` errors verbatim — they are part of the contract.
+- `Provider` is a `Protocol`: `name`, `capabilities()`, `generate(req)`,
+  `stream(req)`. Anything satisfying it plugs in — including third-party
+  plugins. Concrete providers must also expose their raw client
+  (attribute `client` by convention) — nothing hides the provider.
+
+Messages: `Message(role, parts, thinking, tool_calls, tool_call_id)`.
+
+- `thinking` lives **outside** `parts`. That is what makes quirk 3
+  (strip prior-turn thought blocks from history) structural: the message
+  builder simply never serializes `thinking` for historical turns.
+- `Message.required_modalities()` / `GenerateRequest.required_modalities()`
+  drive pre-network capability checks (W-A acceptance).
+- Image detail presets: `minimal=70, caption=140, default=280, detail=560,
+  ocr=1120` (`VISION_TOKEN_BUDGETS`).
+
+Sampling: `GenerateRequest` fields `temperature/top_p/top_k` default to
+`None` = "apply the model's known-good defaults" (Gemma 4: 1.0 / 0.95 / 64).
+Providers apply the defaults; user code overrides deliberately.
+
+`think=True` → the provider injects `<|think|>` at the start of the system
+prompt (quirk 2). Modality ordering (image/audio before text, quirk 4) is
+the message builder's job, not the caller's.
+
+---
+
+### Contract 2 — `Sensitive[T]` and `PolicyContext`
+
+*File: `kernel/contracts/policy.py`*
+
+Sensitivity is a type, not a convention (invariant 1).
+
+- `Sensitive(value, label=...)` is a **sealed box**: masked `repr`/`str`/
+  `format`, refuses pickling, captures its construction call site in
+  `.origin` (`file.py:123`).
+- `Sensitive.unwrap_for(provider, policy)` is the *only* sanctioned path to
+  the value on the way to a provider. It delegates to
+  `PolicyContext.unwrap(value, provider)` — exactly one enforcement path.
+- `Sensitive.dangerously_reveal()` exists for the policy engine
+  post-authorization and for code that stays on-device by construction.
+  The name is the audit trail; greppable in review.
+- `Redactor` protocol: `name`, `redact(text) -> (clean_text, [Redaction])`.
+  Implementations live in packs (`healthcare.phi`).
+- `PolicyViolation` (E3xx) **must** carry `field_name`, `call_site`
+  (from `Sensitive.origin`), and `provider`. A vague policy error is one
+  nobody fixes.
+- Every policy decision — allowed or denied — emits a `TraceEvent`
+  (`kind="policy"` or `"redaction"`).
+
+Enforcement matrix (W-B implements):
+
+| value → provider egress | `device` | `trusted-network` | `public-cloud` |
+|---|---|---|---|
+| non-sensitive | allow | allow | allow |
+| `Sensitive`, no redactor | allow | allow if policy egress ≥ trusted | **raise E301** |
+| `Sensitive`, redactor declared | allow (raw) | allow (raw or redacted per policy) | allow **redacted only** |
+
+Additionally: any provider whose egress class is broader than the
+project's `[policy] egress` limit is refused outright (E303), sensitive or
+not.
+
+---
+
+### Contract 3 — `@tool`
+
+*File: `kernel/contracts/tools.py` · Schema: `tool-manifest.schema.json`*
+
+One decorator, four artifacts: JSON schema (from type hints), permission
+declaration (closed set: `network` / `sensitive` / `writes`), **mandatory
+mock**, doc entry (the docstring).
+
+- No mock → decoration fails with **E502**. Not at call time — at import.
+- Unknown permission → **E503**.
+- `Tool.spec` carries the `ToolSpec`; `ToolSpec.as_function_schema()` is
+  the provider-facing declaration; `ToolSpec.to_manifest()` the
+  `ack manifest` entry.
+- Offline mode (`ack demo --offline`) dispatches to `spec.mock` instead of
+  `spec.fn`. The swap happens in the agent loop (W-E), never inside Tool.
+
+---
+
+### Contract 4 — `TraceEvent`
+
+*File: `kernel/contracts/trace.py` · Schema: `trace-event.schema.json`*
+
+One schema for every model call, tool call, redaction, policy decision,
+and error. Fields exactly: `ts, run_id, span_id, parent_span_id, kind,
+egress, bytes_out, payload`.
+
+- Wire format: JSONL, one event per line, `to_json()` = sorted keys, no
+  whitespace drift (deterministic — invariant 4).
+- `bytes_out` = bytes that left the process toward the provider for this
+  event. The "0 bytes egressed" panel is
+  `sum(e.bytes_out for e in run if e.egress != DEVICE) == 0`.
+- `kind` is a closed set: `model | tool | redaction | policy | error`.
+- Emitter, sinks (JSONL file, console view) and the eval harness are W-C;
+  they consume this type, never extend it. New needs → amend here first.
+
+Payload conventions (informative, not schema-enforced): `model` events
+carry `{"model", "provider", "input_tokens", "output_tokens", "duration_ms"}`;
+`redaction` events carry `{"redactor", "categories", "count"}`; `policy`
+events carry `{"decision": "allow"|"allow-redacted"|"deny", "reason", "call_site"}`.
+
+---
+
+### Contract 5 — `ack.toml`
+
+*File: `kernel/contracts/config.py` · Schema: `ack-toml.schema.json`*
+
+Declarative project state: `[project] blueprint/pack`, `[model]
+primary/fallback` (as `provider:model` refs), `[policy] egress/redactor`,
+`[capabilities] enabled`.
+
+- `AckConfig.load(path)` / `from_dict()` raise E40x errors naming the
+  exact missing/invalid key.
+- `AckConfig.to_toml()` is deterministic (byte-identical for identical
+  configs).
+- Unknown keys are **preserved** (`raw` holds the full parsed dict) —
+  users and agents may extend the file; `ack sync` must never destroy
+  their edits.
+
+---
+
+### Errors (cross-cutting)
+
+*File: `kernel/contracts/errors.py` · Registry: `spec/errors.json` · Schema: `errors.schema.json`*
+
+- `AckError(message, code=, why=, fix=, details=)`; `render()` produces the
+  canonical CLI shape; `to_dict()` the `--json`/MCP shape.
+- Code ranges: E0xx environment · E1xx model/provider/network · E2xx
+  capability · E3xx policy · E4xx config · E5xx generation · E6xx eval.
+- New error codes are **added to `spec/errors.json` first**, then raised in
+  code. A code raised but not registered is a test failure (W-J enforces).
+
+---
+
+### Canonical message build (binds W-A and W-J)
+
+`build_ollama_chat(req: GenerateRequest, model: str) -> dict` in
+`kernel/providers/builder.py` is the single quirk-application point. Its
+output is the exact Ollama `/api/chat` payload and the conformance
+fixtures assert it byte-for-byte (as sorted-key JSON):
+
+```json
+{
+  "model": "gemma4:e4b",
+  "messages": [
+    {"role": "system", "content": "<|think|>You are..."},
+    {"role": "user", "content": "...", "images": ["<b64>"], "audio": ["<b64>"]}
+  ],
+  "tools": [ ...ToolSpec.as_function_schema()... ],
+  "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+  "stream": false
+}
+```
+
+Rules, in order:
+1. Sampling defaults 1.0/0.95/64 land in `options`; request overrides win.
+   `max_tokens` → `options.num_predict`; `stop` → `options.stop`;
+   context is NOT sent (the model declares it).
+2. `think=True` → prepend `<|think|>` to the system message content
+   (creating a system message if none exists). Exactly once, at the start.
+3. History hygiene: `Message.thinking` is NEVER serialized for any turn.
+   Assistant `tool_calls` serialize to Ollama's `tool_calls` field; `tool`
+   role turns carry `tool_call_id` as `tool_name` mapping per Ollama.
+4. Modality order: within a message, images/audio serialize to their
+   `images`/`audio` arrays (which Ollama places before text); multiple
+   text parts join with "\n\n" into `content`.
+5. `ImagePart.detail` preset maps to `options.vision_tokens` using
+   `VISION_TOKEN_BUDGETS` when any image is present (highest preset wins
+   across images).
+6. Bytes data → base64; str data that is an existing file path → read and
+   base64; other str → assumed already-base64 (passed through).
+
+### Blueprint layout (binds W-G and W-I)
+
+A blueprint is `packages/agenticcarekit/blueprints/<name>/` containing:
+
+- `blueprint.toml` — `[blueprint] name, description, track`;
+  `[requires] modalities_in = [...], tool_calling = bool,
+  context_tokens = int`; `[defaults] capabilities = [...], pack = "..."`.
+- `templates/` — the generated tree. Files ending `.tmpl` are rendered by
+  simple `{{var}}` substitution then the suffix is stripped; everything
+  else is copied verbatim. Renderer (W-G) substitutes exactly:
+  `project_name`, `blueprint`, `pack`, `model_primary`, `model_fallback`,
+  `egress`, `redactor`, `capabilities_list`, `ack_version`. Unknown
+  `{{...}}` in a `.tmpl` file is an E501 error, not silence.
+- `README.md` — states the decision-support-only scope.
+
+Generation is deterministic: identical inputs → byte-identical trees
+(no timestamps, no absolute paths, sorted file iteration).
+
+### Conventions binding all workstreams
+
+- Python ≥ 3.11. Imports always via the single top-level module
+  (`from agenticcarekit.kernel.contracts import ...`).
+- Tests live in `tests/test_<area>_*.py` (flat, exclusively named per
+  workstream). Run: `uv run pytest`.
+- Do not edit `pyproject.toml`; needed deps go in your report.
+- Do not run git commands; the orchestrator commits.
+- Prompts are `.md` files, never string literals.
+- Public functions carry docstrings with runnable examples.
+- No telemetry, no artificial delays, no full-screen TUIs, append-only
+  terminal output, `--json` everywhere (invariants 6–10).
+
+---
+
+## 6. CLI command reference
+
+Global: `ack --version`, `ack --help`. Every command accepts `--json` and emits
+
+```json
+{"envelope_version": 1, "ok": true, "command": "<name>", "version": "0.1.0",
+ "elapsed_ms": null, "data": {}, "error": null}
+```
+
+Failure sets `ok: false`, fills `error` with `{code, title, what, why, fix, details}`,
+and returns a non-zero process exit status. `envelope_version` is `1`. A published
+`spec/schemas/cli-envelope.schema.json` is roadmap.
+
+The CLI header is printed on every command: `agenticcarekit 0.1.0 · ack — No telemetry, ever.`
+
+### `ack init [path]`
+
+Probe the machine, recommend a model, and generate a project.
+
+| Option | Meaning |
+|---|---|
+| `--blueprint`, `-b` | `voice-care`, `care-copilot`, `on-device`, or a custom one on the search path |
+| `--model`, `-m` | pin the model, e.g. `gemma4:e4b-mlx` |
+| `--providers` | comma-separated chain, e.g. `ollama,cerebras` |
+| `--pack` | `healthcare`, `_template`, or an installed third-party pack |
+| `--capabilities` | comma-separated: `voice`, `agents`, `extract`, `rag` |
+| `--name` | project name (defaults to the directory name) |
+| `--blueprint-path` | extra blueprint search directory |
+| `--yes`, `-y` | ask nothing |
+| `--why` | print the full ranked table including every eliminated candidate |
+| `--no-pull` | do not download the model |
+| `--no-git` | do not run `git init` |
+| `--offline` | no network: mocks and local only |
+| `--json` | machine-readable |
+
+Generates `ack.toml`, `app/`, `Makefile`, `README.md`, `.gitignore`, `pyproject.toml`,
+and the agent surface (`AGENTS.md`, `CLAUDE.md` symlink, `.cursor/rules/`,
+`.github/copilot-instructions.md`). Running it twice with the same inputs produces a
+byte-identical tree.
+
+### `ack doctor`
+
+Report the machine honestly, with problems as fixable error codes. Options: `--offline`,
+`--json`. `data.facts` is a serializable `MachineFacts`; `data.problems` is a list of
+`{code, title, what, fix}`. Thirteen probes run concurrently with independent timeouts;
+a failed probe reports `status: "unknown"` or `"skipped"` and never blocks.
+`provider_keys` values are **booleans** — key values are never read or logged.
+
+### `ack explain [code]`
+
+Print the long form of an error code from `spec/errors.json`. Case-insensitive.
+Options: `--json`.
+
+### `ack new [kind] [name]`
+
+Scaffold an extension point. `kind` is one of `blueprint`, `capability`, `pack`,
+`provider`, `redactor`. Options: `--path`, `--json`. Writes working examples, not stubs.
+
+### `ack manifest`
+
+Machine-readable description of a generated project: `manifest_version`, `project`,
+`model`, `policy`, `capabilities`, `files`, `tools`, `tool_notes`. A tool module that
+fails to import produces a note, never an exception. Options: `--path`, `--json`.
+
+### `ack sync`
+
+Reconcile the project tree against `ack.toml`, regenerating the agent surface. Unknown
+keys in `ack.toml` are preserved — users and agents may extend the file. Options:
+`--path`, `--force`, `--json`.
+
+### `ack add [capability]`
+
+Enable a capability in `ack.toml`. Known first-party capabilities: `agents`, `extract`,
+`rag`, `voice`. Options: `--path`, `--json`.
+
+### `ack swap [what] [value]`
+
+Swap `model`, `fallback`, `pack`, `redactor`, or `egress`. Options: `--path`, `--json`.
+Returns `{what, from, to}`.
+
+### `ack eject [thing]`
+
+Inline a packaged abstraction into your source. Today the only registered ejectable is
+`prompts`, which copies every packaged prompt `.md` into `./prompts/`. Never clobbers
+without `--force`. Options: `--path`, `--force`, `--json`.
+
+### `ack check`
+
+Lint plus a fast selftest (the contract doctests), under a 30-second budget. Returns
+`{ok, budget_seconds, within_budget, duration_ms, steps: [{name, status, duration_ms, detail}]}`.
+Non-zero exit status on failure. Options: `--path`, `--json`.
+
+### `ack eval`
+
+Score the project against its golden set at `evals/*.jsonl`. Each line is
+`{"id", "input", "expected"}`. `--offline` scores against exact match with a mock
+provider; otherwise the project's provider chain is resolved via `provider_for`.
+Raises **E601** when no golden set exists. Options: `--path`, `--offline`, `--json`.
+
+### `ack demo`
+
+Run the project's demo — prefers `make demo`, falls back to `python app/main.py`.
+`--offline` sets `ACK_OFFLINE=1` so every tool dispatches to its mock and
+`provider_for` returns a `MockProvider`. Non-zero exit status when the demo fails.
+Options: `--path`, `--offline`, `--json`.
+
+### Environment variables
+
+| Variable | Effect |
+|---|---|
+| `ACK_OFFLINE=1` | same as `--offline` |
+| `ACK_MACHINE_FACTS=<path>` | inject a recorded `MachineFacts` JSON instead of probing |
+| `ACK_BLUEPRINT_PATH=<dir>` | extra blueprint search path |
+| `ACK_THROUGHPUT_URL=<url>` | override the network throughput probe endpoint |
+| `OLLAMA_MODELS` | model directory used by the disk probe |
+| `NO_COLOR` / `FORCE_COLOR` | both respected; `NO_COLOR` wins |
+
+### `ack serve`
+
+Run the local sidecar: the kernel over HTTP, or MCP for agents. Options: `--path`,
+`--host` (default `127.0.0.1`), `--port` (default `4422`), `--mcp` (MCP over stdio;
+stdout becomes the transport so the banner goes to stderr), `--allow-remote` (permit a
+non-loopback bind, deliberately), `--json`.
+
+Writes a `0600` token file at `<project>/.ack/serve.token`; send it as
+`Authorization: Bearer <token>`. Twelve routes, all returning the standard envelope:
+
+```
+GET  /v1/health          GET  /v1/doctor        GET  /v1/manifest
+GET  /v1/models          GET  /v1/errors/{code} GET  /v1/trace
+GET  /v1/trace/stream    POST /v1/init          POST /v1/generate
+POST /v1/check           POST /v1/eval          POST /v1/capabilities/add
+```
+
+OpenAPI at `/openapi.json`, rendered at `/docs`. Generate clients from it.
+
+MCP tool surface — a deliberately closed list (`serve/mcp_server.py::TOOL_NAMES`):
+`init_project`, `add_capability`, `doctor`, `run_eval`, `get_manifest`,
+`search_models`, `explain_error`. `ACK_SERVE_ROOT` names the project root for MCP
+clients that cannot pass `--path`.
+
+### Roadmap commands
+
+`ack verify-plugin <name>` (run the conformance suite against a third-party plugin) and
+`ack eval --init` (scaffold a golden set — referenced by E601's fix string but not
+implemented).
+
+---
+
+## 7. Error registry
+
+Registry version 1.0.0 · 34 codes · source `spec/errors.json`.
+
+A new code is added to the registry **first**, then raised in code. A code raised but
+not registered is a test failure (`tests/test_conformance_registry.py`).
+
+| Range | Domain |
+|---|---|
+| `E0xx` | bootstrap / environment |
+| `E1xx` | model / provider / network |
+| `E2xx` | capability mismatch |
+| `E3xx` | policy and privacy violations |
+| `E4xx` | project config |
+| `E5xx` | generation / templates |
+| `E6xx` | eval |
+
+| Code | Title | What | Fix |
+|---|---|---|---|
+| **E001** | Python version too old | agenticcarekit requires Python 3.11 or newer. | `uv python install 3.12 && uv run ack doctor` |
+| **E010** | Ollama is not installed | no ollama binary was found on PATH. | `brew install ollama   # or: curl -fsSL https://ollama.com/install.sh \| sh` |
+| **E011** | Ollama daemon is not running | the ollama binary exists but the daemon did not answer on 127.0.0.1:11434. | `ollama serve   # then re-run your command` |
+| **E012** | Microphone dependency not installed | the local mic adapter needs the optional sounddevice package and it is not installed. | `uv pip install sounddevice   # or use MockASR / the Twilio adapter` |
+| **E013** | Optional extra not installed | a command needs an optional dependency group that is not installed (e.g. the [serve] extra). | `uv pip install "agenticcarekit[serve]"   # the error's fix line names the exact extra` |
+| **E020** | Not enough disk space for the selected model | free disk at the model directory is below model size × 1.15. | `free up space, or pick a smaller model: ack init --model gemma4:e2b` |
+| **E021** | Not enough RAM for the selected model | available RAM is below the model's working-set requirement (size / 0.6 rule). | `pick a smaller model: ack init --model gemma4:e2b   # or use a hosted primary` |
+| **E022** | Model variant does not fit this platform | the selected variant targets different hardware (e.g. an -mlx tag off Apple Silicon). | `let detection choose: ack init   # or pick the base tag, e.g. gemma4:e4b` |
+| **E030** | Project root not writable | agenticcarekit needed to create a file under the project root and the filesystem refused. | `ack serve --path <a directory you can write to>` |
+| **E101** | Model pull failed | the model download did not complete. | `re-run the same command — the pull resumes where it stopped` |
+| **E102** | Provider request failed | the provider returned an error or timed out. | `check 'ack doctor', or configure a fallback: [model] fallback = "cerebras:gemma-4-31b"` |
+| **E110** | Network unreachable | a network probe or provider call could not reach its host. | `ack demo --offline   # everything runs against mocks with networking disabled` |
+| **E120** | Provider API key missing | a hosted provider is configured but its API key env var is not set. | `export CEREBRAS_API_KEY=...   # presence is checked, the value is never logged` |
+| **E130** | Sidecar token rejected | a request to ack serve arrived without a valid bearer token. | `Authorization: Bearer $(cat .ack/serve.token)` |
+| **E201** | Context window too small | the blueprint's required context exceeds the model's context window. | `pick a 256K-context model: ack init --model gemma4:12b` |
+| **E202** | Tool calling not supported | the blueprint requires native function calling and this model/provider pair does not declare it. | `ack init --model gemma4:e4b   # all Gemma 4 tags declare tool calling via Ollama` |
+| **E203** | Model does not support a required input modality | a request or blueprint needs an input modality (e.g. audio) this model lacks. | `ack init --model gemma4:e4b-mlx` |
+| **E204** | Model does not support a required output modality | the request needs an output modality the model cannot produce. | `ack add voice   # wires a TTS provider next to the model` |
+| **E301** | Sensitive value blocked at egress boundary | a Sensitive[T] value was about to reach a public-cloud provider with no redactor declared. | `declare a redactor: [policy] redactor = "healthcare.phi"   # or keep egress = "device"` |
+| **E302** | Declared redactor not found | ack.toml names a redactor that no installed pack provides. | `ack doctor --json \| grep redactors   # then fix [policy] redactor in ack.toml` |
+| **E303** | Egress attempted above configured limit | a provider with a broader egress class than [policy] egress was invoked. | `use a device/trusted provider, or deliberately raise [policy] egress in ack.toml` |
+| **E401** | Invalid ack.toml | ack.toml exists but could not be parsed or a field is malformed. | `ack sync   # reconciles and rewrites a valid ack.toml, preserving your values` |
+| **E402** | ack.toml missing a required section | [project] and [model] are required and one is absent. | `ack sync` |
+| **E403** | Invalid egress class in ack.toml | [policy] egress is not one of device, trusted-network, public-cloud. | `set [policy] egress = "device"` |
+| **E404** | No ack.toml in this directory | the command needs a project and none was found here. | `ack init` |
+| **E410** | Unknown blueprint | the named blueprint is not installed. | `ack init --blueprint on-device` |
+| **E411** | Unknown pack | the named pack is not installed. | `uv pip install <pack-package>   # or: ack new pack` |
+| **E501** | Template rendering failed | a blueprint template did not render. | `re-run with --json for the failing template path, and file an issue` |
+| **E502** | Tool declared without a mock | @tool was applied with no mock implementation. | `@tool(mock=mock_yourtool, ...)  # return canned, realistic data` |
+| **E503** | Unknown tool permission | a permission outside network/sensitive/writes was declared. | `use permissions={"network"} (or "sensitive", "writes")` |
+| **E504** | Structured extraction failed validation | the model's output did not match the requested schema, and the single repair attempt did not fix it. | `ack demo --json   # 'details' carries both raw outputs; tighten the schema or the prompt` |
+| **E601** | Eval golden set missing | ack eval found no golden set for this blueprint/pack. | `ack eval --init   # scaffolds a golden set from the pack's clinical eval sets` |
+| **E602** | Eval scoring failed | the judge model call failed while scoring. | `re-run; or score offline against exact-match only: ack eval --offline` |
+| **E603** | Generated demo failed | the project's demo exited non-zero. | `ack demo --offline   # runs against mocks; then ack doctor for environment causes` |
+
+Known drift: E601's fix references `ack eval --init`, which is not implemented.
+
+---
+
+## 8. The privacy boundary
+
+Three egress classes and nothing else: `device` (never leaves the machine),
+`trusted-network` (self-hosted, user-controlled), `public-cloud` (third-party API).
+
+| value → provider egress | `device` | `trusted-network` | `public-cloud` |
+|---|---|---|---|
+| non-sensitive | allow | allow | allow |
+| `Sensitive`, no redactor | allow | allow if policy egress >= trusted | **raise E301** |
+| `Sensitive`, redactor declared | allow (raw) | allow (raw by default) | allow **redacted only** |
+
+Above the table: any provider whose declared egress is broader than the project's
+`[policy] egress` is refused outright with **E303**, sensitive or not, checked before
+the value is revealed.
+
+Minimal working example:
+
+```python
+from agenticcarekit.kernel.contracts import EgressClass, Sensitive
+from agenticcarekit.kernel.policy import Policy
+from agenticcarekit.kernel.providers import CerebrasProvider
+from agenticcarekit.packs.healthcare import PHIRedactor
+
+policy = Policy(
+    egress=EgressClass.PUBLIC_CLOUD,
+    redactors={"healthcare.phi": PHIRedactor()},
+    default_redactor="healthcare.phi",
+)
+note = Sensitive("Patient Maria Alvarez, MRN 4482911, DOB 03/14/1979.", label="intake_note")
+note.unwrap_for(CerebrasProvider("gemma-4-31b"), policy)
+# 'Patient [NAME-1], MRN [MRN-1], DOB [DATE-1].'
+```
+
+Guarantees: one enforcement path (`Policy.unwrap`); E301 carries field label, exact
+construction call site and provider; E302 fires at `Policy` construction for a redactor
+no installed pack provides; non-text sensitive payloads are refused rather than
+stringified; trace payloads carry decisions and category names but never the value or
+the removed spans.
+
+Limits, stated plainly: the guarantee is against **accident, not malice** —
+`value._Sensitive__value` is reachable in Python and that gap is asserted as a test. A
+provider that lies about its declared egress defeats the boundary. Once `unwrap`
+returns, the value is an ordinary `str` and carries no taint. The engine cannot judge
+whether a redactor is any good.
+
+**Not claimed:** HIPAA compliance, Safe Harbor certification, SOC 2 / HITRUST / ISO /
+FDA anything, medical-device status, or validation on real patient data. The
+`healthcare.phi` redactor measures **precision 0.9688 / recall 0.9394** on its own
+33-sentence labelled set — regex and wordlist de-identification, with `NAME` and `DATE`
+carrying the misses.
+
+Proving zero egress:
+
+```python
+from agenticcarekit.kernel.trace import read_jsonl, bytes_egressed, assert_zero_egress
+events = read_jsonl("trace.jsonl")
+assert bytes_egressed(events) == 0      # sums bytes_out where egress != device
+assert_zero_egress(events)              # raises AckError E303 naming the offenders
+```
+
+---
+
+## 9. Gemma 4 ground truth
+
+Current as of July 2026, verified against Ollama's registry and Google's model card.
+Do not invent facts beyond this table.
+
+| Ollama tag | Size | Context | Modalities in |
+|---|---|---|---|
+| `gemma4:e2b` | 7.2 GB | 128K | text, image, **audio** |
+| `gemma4:e4b` | 9.6 GB | 128K | text, image, **audio** |
+| `gemma4:12b` | 7.6 GB | 256K | text, image |
+| `gemma4:26b` | 18 GB | 256K | text, image |
+| `gemma4:31b` | 20 GB | 256K | text, image |
+
+- `-mlx` variants exist for Apple Silicon (`gemma4:e4b-mlx`); preferred on arm64 Darwin.
+- `gemma4:cloud` and `gemma4:31b-cloud` are hosted — no download.
+- "E" means *effective* parameters: E2B ≈ 2.3B, E4B ≈ 4.5B. 26B is MoE with ~3.8B
+  active; 31B is dense.
+- **Output is text only on every variant.** No native speech output — TTS is always a
+  separate provider.
+
+### The seven behavioural quirks, all applied in `build_ollama_chat`
+
+1. Sampling defaults `temperature=1.0`, `top_p=0.95`, `top_k=64`.
+2. Thinking is enabled by a `<|think|>` token at the start of the system prompt;
+   exposed as `chat(..., think=True)`.
+3. **Prior-turn thought blocks must be stripped from history.** `Message.thinking` lives
+   outside `parts` and is never serialized for any turn — the fix is structural.
+4. Image and audio must precede text in the prompt.
+5. Vision token budgets: 70 / 140 / 280 / 560 / 1120, exposed as presets
+   (`minimal`, `caption`, `default`, `detail`, `ocr`).
+6. Native `system` role is supported (unlike Gemma 3). Use it.
+7. Native function calling is supported. Use it rather than prompt-hacking JSON.
+
+---
+
+## 10. Extension points
+
+Five, all first-class, all discoverable, each scaffolded by `ack new`.
+
+| Point | Interface | Scaffolded by |
+|---|---|---|
+| Provider | `Provider` protocol | `ack new provider` |
+| Redactor | `Redactor` protocol | `ack new redactor` |
+| Pack | pack manifest + models/redactors | `ack new pack` |
+| Capability | capability manifest | `ack new capability` |
+| Blueprint | `blueprint.toml` + `templates/` | `ack new blueprint` |
+
+Discovery is by Python entry points — the `agenticcarekit.packs` group is declared and
+used today; the inventory of what ships in the box is `registry.toml`:
+
+```toml
+[project.entry-points."agenticcarekit.packs"]
+cardio = "mypackage.cardio"
+```
+
+Install the package and the pack appears; no central registration. `registry.toml` lists
+first-party plugins only. `ack verify-plugin` is roadmap; until then, run the shared
+corpus directly: `python3 spec/conformance/runner.py <adapter-command>`. Do not vendor
+the fixtures — a port that copies them has forked the spec.
+
+Every default is overridable in `ack.toml`, and `ack eject` inlines an abstraction into
+user source.
+
+---
+
+## 11. Verification commands
+
+```bash
+uv run pytest -q                       # 514 pass, 1 known failure
+uv run ruff check packages tests spec
+uv run ruff format --check packages tests spec
+
+# conformance — both must report 69/69 passed · 0 failed · 0 skipped
+uv run python spec/conformance/runner.py -- uv run python spec/conformance/adapters/python.py
+python3 spec/conformance/runner.py node spec/conformance/adapters/typescript.mjs
+
+# TypeScript unit tests (45), after a build
+cd packages/ts && npm install && npm run build && npm test
+
+# inside a generated project
+ack check --json
+ack demo --offline
+```
+
+The TypeScript pytest gate skips when Node or the build is missing. **A skip is not a
+pass.**
+
+Two hazards worth knowing: `uv run pytest` from the repo root currently writes generated
+fixture files into the repo root (`README.md`, `AGENTS.md`, `ack.toml`, `app/`,
+`prompts/`, `providers/`, `.cursor/`), and
+`tests/test_cli_commands.py::test_eval_with_a_golden_set_but_no_provider_chain_names_the_gap`
+fails because it asserts pre-`provider_for` behaviour.
+
+---
+
+## 12. Known issues and roadmap
+
+**Known issues at 0.1.0**
+
+1. `ack doctor` and `ack explain` crash when installed from a wheel —
+   `_registry_path()` in `kernel/contracts/errors.py` resolves `spec/errors.json` one
+   directory too high for an installed layout. Works in a repo checkout.
+2. `voice-care` and `care-copilot` demos raise `TypeError`: the templates call
+   `VoiceLoop(provider=...)` and `AgentLoop(system_prompt=...)`, but the landed
+   signatures are `VoiceLoop(asr, llm, tts, *, system_prompt_path=...)` and
+   `AgentLoop(provider, tools, *, max_steps, offline, emit)`.
+3. `ack eval --init` is referenced by E601 but not implemented.
+4. One failing test (see above).
+5. `uv run pytest` from the repo root litters the repo root.
+6. Only `prompts` is ejectable.
+
+**Roadmap** — none of this exists; nothing here is a claim.
+
+Tier 2 thin clients in Go, Rust,
+Java/Kotlin, Swift, C# generated from the sidecar's OpenAPI spec · Tier 3 installers (Homebrew,
+Scoop, Docker, `curl | sh`, Nix flake, devcontainer feature, GitHub Action, npx) ·
+`ack verify-plugin` · `spec/schemas/cli-envelope.schema.json` · live-network integration
+tests against a real Ollama daemon.
+
+---
+
+Apache-2.0. Design brief: `docs/brief.md`. Index: [llms.txt](llms.txt).

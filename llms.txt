@@ -1,0 +1,77 @@
+# agenticcarekit
+
+> agenticcarekit — the open-model stack for health AI. Runs on your laptop. Ships with the privacy boundary built in.
+
+A scaffolder, a thin runtime, and a local HTTP/MCP sidecar for building healthcare AI
+applications on open-weight models. Not a framework: nothing inverts control, nothing
+hides the provider, every abstraction is ejectable. `ack init` probes the machine,
+recommends a model with reasons, and generates a repo the user owns outright.
+Sensitivity is a type (`Sensitive[T]`) enforced at runtime, not a code comment. Every
+tool ships a mandatory mock so `ack demo --offline` is real. One canonical
+implementation per tier, gated by a 69-case conformance corpus that is green on both
+Python and TypeScript. Decision support only — not diagnosis, not treatment; synthetic
+or public data only. No telemetry, ever. Apache-2.0. Version 0.1.0.
+
+## Start here
+
+- [README](README.md): what it is, the 60-second quickstart, mermaid architecture and dataflow diagrams, the honest support matrix, known issues, roadmap.
+- [Recipes](docs/recipes/README.md): ten task → exact-command files, every command verified against this repo.
+- [Architecture](docs/architecture.md): the four tiers, why the sidecar is the enforcement chokepoint, capability negotiation, the ejectability ladder.
+- [Privacy](docs/privacy.md): the egress boundary, the enforcement matrix, the threat model, and an explicit list of what is not claimed (not HIPAA compliance, not Safe Harbor certification).
+- [Comparison](docs/comparison.md): honest positioning against LangChain, LlamaIndex, and raw Ollama, including when not to use agenticcarekit.
+
+## Contracts and spec
+
+- [CONTRACTS.md](docs/CONTRACTS.md): the five frozen contracts — Capabilities/Provider, Sensitive/PolicyContext, @tool, TraceEvent, ack.toml — plus the canonical Ollama message-build rules.
+- [spec/README.md](spec/README.md): Tier 0 charter, versioning policy, how conformance gates a port.
+- [spec/conformance/README.md](spec/conformance/README.md): the JSON-lines adapter protocol and the encoding of all five conformance areas.
+- [spec/errors.json](spec/errors.json): the shared error registry, 34 codes with what/why/fix.
+- [Error registry, rendered](docs/errors.md): the same 34 codes as a readable table, grouped by range.
+- [spec/schemas/](spec/schemas/): JSON Schema for capabilities, provider-spec, tool-manifest, trace-event, ack-toml, and errors.
+
+## Kernel (Python, canonical)
+
+- [kernel/contracts/](packages/agenticcarekit/kernel/contracts/): the only import surface every other tier builds against — provider.py, policy.py, tools.py, trace.py, config.py, errors.py.
+- [kernel/providers/builder.py](packages/agenticcarekit/kernel/providers/builder.py): `build_ollama_chat` — the single point where every Gemma 4 quirk is applied, asserted byte-for-byte by 20 conformance cases.
+- [kernel/providers/models.py](packages/agenticcarekit/kernel/providers/models.py): the Gemma 4 model table, `audio_capable_tags()`, and `ensure_supported()` — the pre-network capability check that raises E203.
+- [kernel/providers/factory.py](packages/agenticcarekit/kernel/providers/factory.py): `provider_for` — turns a `provider:model` reference from ack.toml into a Provider, or a MockProvider when offline.
+- [kernel/providers/](packages/agenticcarekit/kernel/providers/): ollama.py, cerebras.py, openai_compat.py, mock.py, chain.py (fallback that refuses to degrade).
+- [kernel/policy/engine.py](packages/agenticcarekit/kernel/policy/engine.py): `Policy` — the one enforcement path; E301, E302, E303.
+- [kernel/policy/THREATMODEL.md](packages/agenticcarekit/kernel/policy/THREATMODEL.md): what the boundary guarantees, what it cannot, and eight closed bypasses with their tests.
+- [kernel/trace/](packages/agenticcarekit/kernel/trace/): tracer.py, sinks.py (JSONL + console), analysis.py (`bytes_egressed`, `assert_zero_egress`).
+
+## Capabilities, packs, blueprints
+
+- [capabilities/voice/](packages/agenticcarekit/capabilities/voice/): VoiceLoop, barge-in, MockASR/MockTTS, Twilio media-stream adapter, mic adapter. TTS is a separate provider because Gemma 4 has no speech output.
+- [capabilities/agents/loop.py](packages/agenticcarekit/capabilities/agents/loop.py): AgentLoop — step budget, cancellation, offline mock dispatch, tool errors fed back to the model.
+- [capabilities/extract/extract.py](packages/agenticcarekit/capabilities/extract/extract.py): schema-validated extraction with exactly one repair retry, then E504.
+- [capabilities/rag/index.py](packages/agenticcarekit/capabilities/rag/index.py): LocalIndex — dependency-free TF-IDF, deterministic chunking, byte-identical save/load.
+- [packs/healthcare/](packages/agenticcarekit/packs/healthcare/README.md): FHIR-lite models, PHIRedactor (18 HIPAA categories, measured precision 0.9688 / recall 0.9394), seeded synthetic generator, two eval sets.
+- [packs/_template/](packages/agenticcarekit/packs/_template/README.md): the near-empty second pack that proves the pack interface is an interface.
+- [blueprints/](packages/agenticcarekit/blueprints/): voice-care (intake/scribe), care-copilot (prior auth, referrals, scheduling), on-device (fully offline with the 0-bytes-egressed panel).
+
+## CLI, sidecar, evals
+
+- [cli/main.py](packages/agenticcarekit/cli/main.py): the thirteen `ack` commands — init, doctor, explain, new, manifest, sync, add, swap, eject, check, eval, demo, serve. `--json` on every one, under a stable envelope.
+- [serve/](packages/agenticcarekit/serve/): `ack serve` — the kernel over local HTTP (twelve `/v1` routes, OpenAPI, loopback-bound, 0600 token file) and `ack serve --mcp` over stdio with seven MCP tools. Policy, redaction and trace live in this one process, so thin clients cannot route around them.
+- [serve/mcp_server.py](packages/agenticcarekit/serve/mcp_server.py): the closed MCP tool surface — init_project, add_capability, doctor, run_eval, get_manifest, search_models, explain_error.
+- [cli/detect/probes.py](packages/agenticcarekit/cli/detect/probes.py): thirteen concurrent probes with independent timeouts and graceful degradation.
+- [cli/recommend/rules.py](packages/agenticcarekit/cli/recommend/rules.py): the declarative recommendation table — seven hard filters, nine soft scores, each carrying a human reason string.
+- [evals/harness.py](packages/agenticcarekit/evals/harness.py): golden set, exact match, optional LLM judge loaded from a markdown rubric.
+
+## TypeScript port
+
+- [packages/ts/README.md](packages/ts/README.md): the port's own support matrix — kernel conformance-verified at 69/69; extract and agents unit-tested only; voice, rag and provider clients not ported.
+
+## Project meta
+
+- [AGENTS.md](AGENTS.md): invariants for coding agents working in this repo. CLAUDE.md symlinks to it.
+- [CONTRIBUTING.md](CONTRIBUTING.md): dev setup, test commands, conformance gates, how contracts change.
+- [CHANGELOG.md](CHANGELOG.md): Keep a Changelog format, strict semver.
+- [registry.toml](registry.toml): first-party packs, blueprints, providers and redactors, with entry-point paths.
+- [docs/brief.md](docs/brief.md): the original build brief — invariants, ground truth on Gemma 4, and anti-goals.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): everything above expanded inline — the full contracts document, the complete CLI reference, the error registry table, and the support matrix in one file.
+- [LICENSE](LICENSE): Apache-2.0.
