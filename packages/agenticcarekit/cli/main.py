@@ -12,6 +12,7 @@
     ack check     lint + fast selftest, under 30 seconds
     ack eval      score against the project's golden set
     ack demo      run the project's demo (``--offline`` uses mocks)
+    ack serve     the local sidecar: HTTP + OpenAPI, or MCP over stdio
 
 Every command accepts ``--json``. ``NO_COLOR`` and ``FORCE_COLOR`` are
 honoured, the layout degrades below 80 columns, output is append-only, and
@@ -631,6 +632,82 @@ def demo(
     # demo failed", and inventing one would be a test failure (W-J).
     if not (env["data"] or {}).get("succeeded", True):
         raise typer.Exit(code=1)
+
+
+# ── sidecar ──────────────────────────────────────────────────────────────
+
+
+@app.command()
+def serve(
+    path: PathOpt = None,
+    host: Annotated[str, typer.Option("--host", help="Bind address (loopback only).")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Bind port.")] = 4422,
+    mcp: Annotated[bool, typer.Option("--mcp", help="Serve MCP over stdio instead.")] = False,
+    allow_remote: Annotated[
+        bool, typer.Option("--allow-remote", help="Permit a non-loopback bind (deliberate).")
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Print what would be served, then exit.")
+    ] = False,
+    json_out: JsonOpt = False,
+) -> None:
+    """Run the local sidecar: the kernel over HTTP, or MCP for agents.
+
+    The policy boundary, redaction and the trace live in this one process, so a
+    thin client in any language gets them for free and cannot route around
+    them. ``--mcp`` speaks MCP over stdio; stdout is then the transport, so the
+    banner goes to stderr. Under ``--json`` the envelope is printed when the
+    server stops — the bind details are on stderr at startup. ``--dry-run``
+    reports what would be served and exits, binding nothing and writing nothing.
+    """
+
+    if dry_run:
+
+        def plan(em: Emitter) -> dict[str, Any]:
+            info = _serve_runner().startup_plan(
+                _root(path), host=host, port=port, allow_remote=allow_remote, mcp=mcp
+            )
+            em.blank()
+            em.rule("Would serve")
+            for key in ("mode", "url", "docs_url", "token_path", "root"):
+                if key in info:
+                    em.field(key.replace("_", " "), str(info[key]))
+            return info
+
+        _emit("serve", json_out, plan)
+        return
+
+    if mcp:
+        # stdout IS the MCP transport: no header, no envelope, nothing but the
+        # protocol. Failures go to stderr in the canonical shape.
+        try:
+            _serve_runner().run_mcp(_root(path))
+        except AckError as err:
+            typer.echo(err.render(), err=True)
+            raise typer.Exit(code=1) from None
+        return
+
+    def body(em: Emitter) -> dict[str, Any]:
+        return _serve_runner().run_http(
+            _root(path), host=host, port=port, allow_remote=allow_remote
+        )
+
+    _emit("serve", json_out, body)
+
+
+def _serve_runner() -> Any:
+    """Import the sidecar lazily; explain the missing extra if it is absent."""
+    try:
+        from agenticcarekit.serve import runner
+    except ImportError as exc:
+        raise AckError(
+            "the sidecar needs the optional [serve] extra, which is not installed",
+            code="E000",
+            why=f"importing agenticcarekit.serve failed: {type(exc).__name__}: {exc}",
+            fix='uv pip install "agenticcarekit[serve]"',
+            details={"missing": ["fastapi", "uvicorn", "sse-starlette", "mcp"]},
+        ) from None
+    return runner
 
 
 # ── entry point ──────────────────────────────────────────────────────────

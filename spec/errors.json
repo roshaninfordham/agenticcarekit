@@ -40,6 +40,13 @@
       "fix": "uv pip install sounddevice   # or use MockASR / the Twilio adapter"
     },
     {
+      "code": "E013",
+      "title": "Optional extra not installed",
+      "what": "a command needs an optional dependency group that is not installed (e.g. the [serve] extra).",
+      "why": "heavy optional dependencies stay out of the core install; the feature names its extra instead.",
+      "fix": "uv pip install \"agenticcarekit[serve]\"   # the error's fix line names the exact extra"
+    },
+    {
       "code": "E020",
       "title": "Not enough disk space for the selected model",
       "what": "free disk at the model directory is below model size × 1.15.",
@@ -59,6 +66,13 @@
       "what": "the selected variant targets different hardware (e.g. an -mlx tag off Apple Silicon).",
       "why": "-mlx builds run only on Apple Silicon; CUDA-sized picks assume an NVIDIA GPU.",
       "fix": "let detection choose: ack init   # or pick the base tag, e.g. gemma4:e4b"
+    },
+    {
+      "code": "E030",
+      "title": "Project root not writable",
+      "what": "agenticcarekit needed to create a file under the project root and the filesystem refused.",
+      "why": "read-only mounts, permissions, or a missing directory.",
+      "fix": "ack serve --path <a directory you can write to>"
     },
     {
       "code": "E101",
@@ -87,6 +101,13 @@
       "what": "a hosted provider is configured but its API key env var is not set.",
       "why": "hosted providers authenticate via environment variables; agenticcarekit never stores key values.",
       "fix": "export CEREBRAS_API_KEY=...   # presence is checked, the value is never logged"
+    },
+    {
+      "code": "E130",
+      "title": "Sidecar token rejected",
+      "what": "a request to ack serve arrived without a valid bearer token.",
+      "why": "every endpoint except /v1/health requires the local token so other local processes cannot drive the sidecar silently.",
+      "fix": "Authorization: Bearer $(cat .ack/serve.token)"
     },
     {
       "code": "E201",

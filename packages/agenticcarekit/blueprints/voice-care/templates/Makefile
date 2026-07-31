@@ -8,13 +8,13 @@
 # Runs the voice intake loop fully offline against mock ASR/TTS and the
 # synthetic sample transcripts in app/fixtures/. No network calls.
 demo:
-	python -m app.main --offline
+	python3 -m app.main --offline
 
 # Runs the scribe/extraction eval set (scored table, no network).
 eval:
-	python -m app.main --offline --eval
+	python3 -m app.main --offline --eval
 
 # Static checks: does this project still look the way ack generated it.
 check:
-	python -m compileall -q app
-	python -m pytest -q || true
+	python3 -m compileall -q app
+	python3 -m pytest -q || true

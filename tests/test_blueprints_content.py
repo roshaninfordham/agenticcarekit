@@ -65,7 +65,7 @@ def test_voice_care_has_example_tool_with_mock() -> None:
 
 def test_voice_care_makefile_demo_runs_offline_module() -> None:
     text = read("voice-care", "templates", "Makefile")
-    assert "python -m app.main --offline" in text
+    assert "python3 -m app.main --offline" in text
 
 
 def test_voice_care_has_synthetic_transcript_fixtures() -> None:
@@ -117,7 +117,7 @@ def test_care_copilot_main_wires_agent_loop_with_all_tools() -> None:
 
 def test_care_copilot_makefile_demo_runs_offline_module() -> None:
     text = read("care-copilot", "templates", "Makefile")
-    assert "python -m app.main --offline" in text
+    assert "python3 -m app.main --offline" in text
 
 
 # ──────────────────────────────── on-device ───────────────────────────────
@@ -150,6 +150,6 @@ def test_on_device_renders_zero_bytes_egressed_panel() -> None:
 
 def test_on_device_makefile_demo_has_no_online_mode() -> None:
     text = read("on-device", "templates", "Makefile")
-    assert "python -m app.main" in text
+    assert "python3 -m app.main" in text
     # This blueprint has no network mode to opt out of, so no --offline flag needed.
     assert "--offline" not in text

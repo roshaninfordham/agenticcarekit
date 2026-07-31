@@ -51,6 +51,9 @@ EXTRA_ARGS: dict[str, list[str]] = {
     "init": ["--blueprint", "test-voice", "--yes", "--no-pull", "--no-git"],
     "explain": ["E203"],
     "new": ["provider", "smoke-provider"],
+    # `serve` blocks: it is a server. --dry-run is its non-blocking form, and
+    # it binds no port and writes no token file (W-K).
+    "serve": ["--dry-run"],
 }
 
 
@@ -66,6 +69,7 @@ def test_every_command_is_covered() -> None:
         "init",
         "manifest",
         "new",
+        "serve",
         "swap",
         "sync",
     ]
