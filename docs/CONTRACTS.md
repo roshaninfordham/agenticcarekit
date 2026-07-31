@@ -180,6 +180,62 @@ primary/fallback` (as `provider:model` refs), `[policy] egress/redactor`,
 
 ---
 
+## Canonical message build (binds W-A and W-J)
+
+`build_ollama_chat(req: GenerateRequest, model: str) -> dict` in
+`kernel/providers/builder.py` is the single quirk-application point. Its
+output is the exact Ollama `/api/chat` payload and the conformance
+fixtures assert it byte-for-byte (as sorted-key JSON):
+
+```json
+{
+  "model": "gemma4:e4b",
+  "messages": [
+    {"role": "system", "content": "<|think|>You are..."},
+    {"role": "user", "content": "...", "images": ["<b64>"], "audio": ["<b64>"]}
+  ],
+  "tools": [ ...ToolSpec.as_function_schema()... ],
+  "options": {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+  "stream": false
+}
+```
+
+Rules, in order:
+1. Sampling defaults 1.0/0.95/64 land in `options`; request overrides win.
+   `max_tokens` → `options.num_predict`; `stop` → `options.stop`;
+   context is NOT sent (the model declares it).
+2. `think=True` → prepend `<|think|>` to the system message content
+   (creating a system message if none exists). Exactly once, at the start.
+3. History hygiene: `Message.thinking` is NEVER serialized for any turn.
+   Assistant `tool_calls` serialize to Ollama's `tool_calls` field; `tool`
+   role turns carry `tool_call_id` as `tool_name` mapping per Ollama.
+4. Modality order: within a message, images/audio serialize to their
+   `images`/`audio` arrays (which Ollama places before text); multiple
+   text parts join with "\n\n" into `content`.
+5. `ImagePart.detail` preset maps to `options.vision_tokens` using
+   `VISION_TOKEN_BUDGETS` when any image is present (highest preset wins
+   across images).
+6. Bytes data → base64; str data that is an existing file path → read and
+   base64; other str → assumed already-base64 (passed through).
+
+## Blueprint layout (binds W-G and W-I)
+
+A blueprint is `packages/agenticcarekit/blueprints/<name>/` containing:
+
+- `blueprint.toml` — `[blueprint] name, description, track`;
+  `[requires] modalities_in = [...], tool_calling = bool,
+  context_tokens = int`; `[defaults] capabilities = [...], pack = "..."`.
+- `templates/` — the generated tree. Files ending `.tmpl` are rendered by
+  simple `{{var}}` substitution then the suffix is stripped; everything
+  else is copied verbatim. Renderer (W-G) substitutes exactly:
+  `project_name`, `blueprint`, `pack`, `model_primary`, `model_fallback`,
+  `egress`, `redactor`, `capabilities_list`, `ack_version`. Unknown
+  `{{...}}` in a `.tmpl` file is an E501 error, not silence.
+- `README.md` — states the decision-support-only scope.
+
+Generation is deterministic: identical inputs → byte-identical trees
+(no timestamps, no absolute paths, sorted file iteration).
+
 ## Conventions binding all workstreams
 
 - Python ≥ 3.11. Imports always via the single top-level module
