@@ -1,0 +1,57 @@
+{
+  "name": "agenticcarekit",
+  "version": "0.1.0",
+  "private": false,
+  "description": "TypeScript port of the agenticcarekit kernel: the five frozen contracts, the canonical Gemma 4 message builder, the privacy boundary, and honest minimal capability ports. Conformance-verified against spec/conformance.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/src/contracts/index.d.ts",
+      "default": "./dist/src/contracts/index.js"
+    },
+    "./kernel": {
+      "types": "./dist/src/kernel/index.d.ts",
+      "default": "./dist/src/kernel/index.js"
+    },
+    "./capabilities": {
+      "types": "./dist/src/capabilities/index.d.ts",
+      "default": "./dist/src/capabilities/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "healthcare ai",
+    "phi redaction",
+    "de-identification",
+    "on-device llm",
+    "local llm",
+    "hipaa",
+    "fhir",
+    "medical scribe",
+    "gemma",
+    "open weights"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "pretest": "npm run build",
+    "test": "node --test dist/tests/*.test.js",
+    "conformance": "node scripts/conformance.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}
