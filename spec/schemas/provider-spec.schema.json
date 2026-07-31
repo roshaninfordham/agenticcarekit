@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/provider-spec.schema.json",
+  "title": "ProviderSpec",
+  "description": "Contract 1 — a named provider and the capabilities it declares per model.",
+  "type": "object",
+  "required": ["name", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "models": {
+      "type": "object",
+      "description": "Optional map of model tag to Capabilities.",
+      "additionalProperties": { "$ref": "capabilities.schema.json" }
+    },
+    "capabilities": { "$ref": "capabilities.schema.json" }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/ack-toml.schema.json",
+  "title": "ack.toml",
+  "description": "Contract 5 — declarative project state. The generator writes it, the runtime reads it, agents edit it, `ack sync` reconciles the tree against it.",
+  "type": "object",
+  "required": ["project", "model"],
+  "additionalProperties": true,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["blueprint", "pack"],
+      "additionalProperties": true,
+      "properties": {
+        "blueprint": { "type": "string", "minLength": 1 },
+        "pack": { "type": "string", "minLength": 1 }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["primary"],
+      "additionalProperties": true,
+      "properties": {
+        "primary": { "$ref": "#/$defs/modelref" },
+        "fallback": { "$ref": "#/$defs/modelref" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "egress": { "enum": ["device", "trusted-network", "public-cloud"], "default": "device" },
+        "redactor": { "type": "string" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    }
+  },
+  "$defs": {
+    "modelref": {
+      "type": "string",
+      "pattern": "^[a-z0-9_-]+:.+$",
+      "description": "provider:model, e.g. ollama:gemma4:e4b-mlx"
+    }
+  }
+}

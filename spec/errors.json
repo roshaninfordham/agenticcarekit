@@ -1,0 +1,197 @@
+{
+  "$schema": "./schemas/errors.schema.json",
+  "version": "1.0.0",
+  "ranges": {
+    "E0xx": "bootstrap / environment",
+    "E1xx": "model / provider / network",
+    "E2xx": "capability mismatch",
+    "E3xx": "policy and privacy violations",
+    "E4xx": "project config",
+    "E5xx": "generation / templates",
+    "E6xx": "eval"
+  },
+  "errors": [
+    {
+      "code": "E001",
+      "title": "Python version too old",
+      "what": "agenticcarekit requires Python 3.11 or newer.",
+      "why": "the kernel uses typing and tomllib features introduced in 3.11.",
+      "fix": "uv python install 3.12 && uv run ack doctor"
+    },
+    {
+      "code": "E010",
+      "title": "Ollama is not installed",
+      "what": "no ollama binary was found on PATH.",
+      "why": "the local model path runs through the Ollama daemon.",
+      "fix": "brew install ollama   # or: curl -fsSL https://ollama.com/install.sh | sh"
+    },
+    {
+      "code": "E011",
+      "title": "Ollama daemon is not running",
+      "what": "the ollama binary exists but the daemon did not answer on 127.0.0.1:11434.",
+      "why": "model pulls and generation need the daemon up.",
+      "fix": "ollama serve   # then re-run your command"
+    },
+    {
+      "code": "E020",
+      "title": "Not enough disk space for the selected model",
+      "what": "free disk at the model directory is below model size × 1.15.",
+      "why": "a partial pull wastes bandwidth and leaves a corrupt blob.",
+      "fix": "free up space, or pick a smaller model: ack init --model gemma4:e2b"
+    },
+    {
+      "code": "E101",
+      "title": "Model pull failed",
+      "what": "the model download did not complete.",
+      "why": "network interruption or registry error; pulls are resumable.",
+      "fix": "re-run the same command — the pull resumes where it stopped"
+    },
+    {
+      "code": "E102",
+      "title": "Provider request failed",
+      "what": "the provider returned an error or timed out.",
+      "why": "transient provider/network failure; the fallback chain covers this when configured.",
+      "fix": "check `ack doctor`, or configure a fallback: [model] fallback = \"cerebras:gemma-4-31b\""
+    },
+    {
+      "code": "E110",
+      "title": "Network unreachable",
+      "what": "a network probe or provider call could not reach its host.",
+      "why": "offline machine, captive portal, or firewall.",
+      "fix": "ack demo --offline   # everything runs against mocks with networking disabled"
+    },
+    {
+      "code": "E120",
+      "title": "Provider API key missing",
+      "what": "a hosted provider is configured but its API key env var is not set.",
+      "why": "hosted providers authenticate via environment variables; agenticcarekit never stores key values.",
+      "fix": "export CEREBRAS_API_KEY=...   # presence is checked, the value is never logged"
+    },
+    {
+      "code": "E201",
+      "title": "Context window too small",
+      "what": "the blueprint's required context exceeds the model's context window.",
+      "why": "long transcripts or documents will silently truncate otherwise — agenticcarekit refuses instead.",
+      "fix": "pick a 256K-context model: ack init --model gemma4:12b"
+    },
+    {
+      "code": "E202",
+      "title": "Tool calling not supported",
+      "what": "the blueprint requires native function calling and this model/provider pair does not declare it.",
+      "why": "prompt-hacked JSON is not a substitute; agenticcarekit only uses native function calling.",
+      "fix": "ack init --model gemma4:e4b   # all Gemma 4 tags declare tool calling via Ollama"
+    },
+    {
+      "code": "E203",
+      "title": "Model does not support a required input modality",
+      "what": "a request or blueprint needs an input modality (e.g. audio) this model lacks.",
+      "why": "native audio input is available on gemma4:e2b and gemma4:e4b only.",
+      "fix": "ack init --model gemma4:e4b-mlx"
+    },
+    {
+      "code": "E204",
+      "title": "Model does not support a required output modality",
+      "what": "the request needs an output modality the model cannot produce.",
+      "why": "Gemma 4 output is text only on every variant — speech output requires a separate TTS provider.",
+      "fix": "ack add voice   # wires a TTS provider next to the model"
+    },
+    {
+      "code": "E301",
+      "title": "Sensitive value blocked at egress boundary",
+      "what": "a Sensitive[T] value was about to reach a public-cloud provider with no redactor declared.",
+      "why": "sensitivity is a type, not a convention — un-redacted PHI never crosses the boundary.",
+      "fix": "declare a redactor: [policy] redactor = \"healthcare.phi\"   # or keep egress = \"device\""
+    },
+    {
+      "code": "E302",
+      "title": "Declared redactor not found",
+      "what": "ack.toml names a redactor that no installed pack provides.",
+      "why": "the policy engine refuses to guess — a silently missing redactor would be an open boundary.",
+      "fix": "ack doctor --json | grep redactors   # then fix [policy] redactor in ack.toml"
+    },
+    {
+      "code": "E303",
+      "title": "Egress attempted above configured limit",
+      "what": "a provider with a broader egress class than [policy] egress was invoked.",
+      "why": "the project declared a stricter boundary than this provider satisfies.",
+      "fix": "use a device/trusted provider, or deliberately raise [policy] egress in ack.toml"
+    },
+    {
+      "code": "E401",
+      "title": "Invalid ack.toml",
+      "what": "ack.toml exists but could not be parsed or a field is malformed.",
+      "why": "usually a hand-edit; the file is meant to be edited, so errors name the exact key.",
+      "fix": "ack sync   # reconciles and rewrites a valid ack.toml, preserving your values"
+    },
+    {
+      "code": "E402",
+      "title": "ack.toml missing a required section",
+      "what": "[project] and [model] are required and one is absent.",
+      "why": "the runtime cannot pick a model or blueprint without them.",
+      "fix": "ack sync"
+    },
+    {
+      "code": "E403",
+      "title": "Invalid egress class in ack.toml",
+      "what": "[policy] egress is not one of device, trusted-network, public-cloud.",
+      "why": "the privacy boundary is defined over exactly these three classes.",
+      "fix": "set [policy] egress = \"device\""
+    },
+    {
+      "code": "E404",
+      "title": "No ack.toml in this directory",
+      "what": "the command needs a project and none was found here.",
+      "why": "you are outside a generated project, or init has not run.",
+      "fix": "ack init"
+    },
+    {
+      "code": "E410",
+      "title": "Unknown blueprint",
+      "what": "the named blueprint is not installed.",
+      "why": "first-party blueprints are voice-care, care-copilot, on-device.",
+      "fix": "ack init --blueprint on-device"
+    },
+    {
+      "code": "E411",
+      "title": "Unknown pack",
+      "what": "the named pack is not installed.",
+      "why": "packs are discovered via entry points; an uninstalled pack is invisible.",
+      "fix": "uv pip install <pack-package>   # or: ack new pack"
+    },
+    {
+      "code": "E501",
+      "title": "Template rendering failed",
+      "what": "a blueprint template did not render.",
+      "why": "template and context drifted — this is a bug in the blueprint, not your project.",
+      "fix": "re-run with --json for the failing template path, and file an issue"
+    },
+    {
+      "code": "E502",
+      "title": "Tool declared without a mock",
+      "what": "@tool was applied with no mock implementation.",
+      "why": "every tool ships a mock — it is what makes `ack demo --offline` real.",
+      "fix": "@tool(mock=mock_yourtool, ...)  # return canned, realistic data"
+    },
+    {
+      "code": "E503",
+      "title": "Unknown tool permission",
+      "what": "a permission outside network/sensitive/writes was declared.",
+      "why": "permissions are a closed set so generated projects can reason about them.",
+      "fix": "use permissions={\"network\"} (or \"sensitive\", \"writes\")"
+    },
+    {
+      "code": "E601",
+      "title": "Eval golden set missing",
+      "what": "ack eval found no golden set for this blueprint/pack.",
+      "why": "evals score against committed golden files; none exist yet.",
+      "fix": "ack eval --init   # scaffolds a golden set from the pack's clinical eval sets"
+    },
+    {
+      "code": "E602",
+      "title": "Eval scoring failed",
+      "what": "the judge model call failed while scoring.",
+      "why": "judge runs use the same provider chain and can hit the same network errors.",
+      "fix": "re-run; or score offline against exact-match only: ack eval --offline"
+    }
+  ]
+}

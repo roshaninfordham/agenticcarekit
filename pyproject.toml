@@ -1,0 +1,101 @@
+[project]
+name = "agenticcarekit"
+version = "0.1.0"
+description = "agenticcarekit — the open-model stack for health AI. Runs on your laptop. Ships with the privacy boundary built in."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "agenticcarekit contributors" }]
+keywords = [
+  "healthcare ai",
+  "phi redaction",
+  "de-identification",
+  "on-device llm",
+  "local llm",
+  "hipaa",
+  "fhir",
+  "medical scribe",
+  "gemma",
+  "open weights",
+  "mcp",
+  "agents",
+  "privacy",
+  "ollama",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Healthcare Industry",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Code Generators",
+  "Typing :: Typed",
+]
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "questionary>=2.0",
+  "pydantic>=2.7",
+  "httpx>=0.27",
+  "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+serve = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "sse-starlette>=2.1",
+  "mcp>=1.0",
+]
+
+[project.scripts]
+ack = "agenticcarekit.cli.main:main"
+agenticcarekit = "agenticcarekit.cli.main:main"
+
+[project.entry-points."agenticcarekit.packs"]
+healthcare = "agenticcarekit.packs.healthcare"
+
+[project.urls]
+Homepage = "https://github.com/roshaninfordham/agenticcarekit"
+Repository = "https://github.com/roshaninfordham/agenticcarekit"
+Issues = "https://github.com/roshaninfordham/agenticcarekit/issues"
+Changelog = "https://github.com/roshaninfordham/agenticcarekit/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "jsonschema>=4.22",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "sse-starlette>=2.1",
+  "mcp>=1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/agenticcarekit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"spec" = "agenticcarekit/spec"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+include = ["packages/agenticcarekit/**/*.py", "tests/**/*.py", "spec/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

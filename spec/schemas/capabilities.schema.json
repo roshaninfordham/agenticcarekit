@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/capabilities.schema.json",
+  "title": "Capabilities",
+  "description": "Contract 1 — what a provider/model pair can do. Declared, never inferred.",
+  "type": "object",
+  "required": ["modalities_in", "modalities_out", "tool_calling", "streaming", "context_tokens", "thinking", "egress"],
+  "additionalProperties": false,
+  "properties": {
+    "modalities_in": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modality" },
+      "uniqueItems": true
+    },
+    "modalities_out": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modality" },
+      "uniqueItems": true
+    },
+    "tool_calling": { "type": "boolean" },
+    "streaming": { "type": "boolean" },
+    "context_tokens": { "type": "integer", "minimum": 0 },
+    "thinking": { "type": "boolean" },
+    "egress": { "$ref": "#/$defs/egress" }
+  },
+  "$defs": {
+    "modality": { "enum": ["text", "image", "audio"] },
+    "egress": { "enum": ["device", "trusted-network", "public-cloud"] }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/trace-event.schema.json",
+  "title": "TraceEvent",
+  "description": "Contract 4 — one schema emitted by every model call, tool call, redaction, and policy decision. Wire format is JSONL, one event per line.",
+  "type": "object",
+  "required": ["ts", "run_id", "span_id", "parent_span_id", "kind", "egress", "bytes_out", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "ts": { "type": "number", "description": "Unix epoch seconds." },
+    "run_id": { "type": "string", "minLength": 1 },
+    "span_id": { "type": "string", "minLength": 1 },
+    "parent_span_id": { "type": ["string", "null"] },
+    "kind": { "enum": ["model", "tool", "redaction", "policy", "error"] },
+    "egress": { "enum": ["device", "trusted-network", "public-cloud"] },
+    "bytes_out": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Bytes that left the process toward the provider. Powers the '0 bytes egressed' panel: sum over events where egress != device."
+    },
+    "payload": { "type": "object" }
+  }
+}

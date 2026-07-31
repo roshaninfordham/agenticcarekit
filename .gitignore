@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+packages/ts/dist/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Orchestration scratch (never ships)
+.superpowers/
+
+# Local runtime artifacts
+*.jsonl.tmp
+.ack/

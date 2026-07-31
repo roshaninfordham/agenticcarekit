@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/errors.schema.json",
+  "title": "ErrorRegistry",
+  "description": "The shared error registry (spec/errors.json). Every language implementation and the MCP server read this file; codes are stable and searchable.",
+  "type": "object",
+  "required": ["version", "ranges", "errors"],
+  "properties": {
+    "version": { "type": "string" },
+    "ranges": { "type": "object", "additionalProperties": { "type": "string" } },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "title", "what", "why", "fix"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string", "pattern": "^E[0-9]{3}$" },
+          "title": { "type": "string", "minLength": 1 },
+          "what": { "type": "string", "minLength": 1 },
+          "why": { "type": "string", "minLength": 1 },
+          "fix": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

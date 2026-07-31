@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/roshaninfordham/agenticcarekit/spec/schemas/tool-manifest.schema.json",
+  "title": "ToolManifest",
+  "description": "Contract 3 — the machine-readable description of a project's tools, as emitted by `ack manifest --json`.",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "permissions", "parameters", "has_mock"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+          "description": { "type": "string" },
+          "permissions": {
+            "type": "array",
+            "items": { "enum": ["network", "sensitive", "writes"] },
+            "uniqueItems": true
+          },
+          "parameters": { "type": "object", "description": "JSON Schema for the tool's arguments." },
+          "has_mock": { "const": true, "description": "Mocks are not optional." }
+        }
+      }
+    }
+  }
+}
